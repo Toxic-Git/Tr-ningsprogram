@@ -162,6 +162,99 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 }
 .check-btn.done { background:var(--green); border-color:var(--green); color:white; }
 
+/* RPE pill */
+.rpe-pill {
+  display:inline-flex; align-items:center; gap:4px;
+  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:1px; text-transform:uppercase;
+  padding:2px 8px; border-radius:4px; border:1px solid;
+}
+.rpe-easy   { background:rgba(61,184,122,0.12); color:#3db87a; border-color:rgba(61,184,122,0.3); }
+.rpe-mod    { background:rgba(212,168,67,0.12);  color:var(--gold); border-color:rgba(212,168,67,0.3); }
+.rpe-hard   { background:rgba(224,92,74,0.12);   color:var(--dl);   border-color:rgba(224,92,74,0.3); }
+.rpe-max    { background:rgba(180,40,40,0.15);   color:#e84040;     border-color:rgba(180,40,40,0.4); }
+
+/* PR badges */
+.pr-badge {
+  display:inline-flex; align-items:center; gap:3px;
+  font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:900;
+  letter-spacing:1px; text-transform:uppercase;
+  padding:2px 6px; border-radius:4px; margin-left:4px;
+  animation: prPop .4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+.pr-1rm   { background:linear-gradient(135deg,#f5a623,#f76b1c); color:white; }
+.pr-rep   { background:linear-gradient(135deg,#56ccf2,#2f80ed); color:white; }
+.pr-vol   { background:linear-gradient(135deg,#6fcf97,#219653); color:white; }
+.pr-set   { background:linear-gradient(135deg,#bb6bd9,#9b51e0); color:white; }
+@keyframes prPop {
+  0%   { transform:scale(0); opacity:0; }
+  70%  { transform:scale(1.15); opacity:1; }
+  100% { transform:scale(1); opacity:1; }
+}
+
+/* PR flash overlay on set row */
+.set-row.pr-flash {
+  animation: rowFlash .6s ease-out;
+}
+@keyframes rowFlash {
+  0%   { background:rgba(245,166,35,0.25); }
+  100% { background:rgba(61,184,122,0.06); }
+}
+
+/* RPE input on last set */
+.rpe-input {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  color:var(--gold); font-family:'Barlow Condensed',sans-serif; font-size:14px;
+  font-weight:700; padding:8px 6px; text-align:center; width:100%;
+  -webkit-appearance:none; appearance:none;
+}
+.rpe-input:focus { outline:none; border-color:var(--gold); }
+.rpe-input::placeholder { color:var(--muted); font-size:12px; font-weight:400; }
+.set-row-5col {
+  display:grid; grid-template-columns:36px 1fr 1fr 52px 44px;
+  gap:6px; padding:10px 16px; align-items:center;
+  border-bottom:1px solid var(--border); transition:background .15s;
+}
+.set-row-5col.completed { background:rgba(61,184,122,0.06); }
+.set-row-5col.completed .set-num { color:var(--green); }
+
+/* Autoreg suggestion */
+.autoreg-bar {
+  padding:10px 16px; border-top:1px solid var(--border);
+  display:flex; align-items:center; gap:10px; font-size:12px;
+}
+.autoreg-icon { font-size:16px; flex-shrink:0; }
+.autoreg-text { color:var(--muted); font-weight:300; line-height:1.5; flex:1; }
+.autoreg-text strong { font-weight:600; }
+.autoreg-up   strong { color:#3db87a; }
+.autoreg-down strong { color:var(--dl); }
+.autoreg-hold strong { color:var(--gold); }
+.toast {
+  position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--steel); color:var(--text); border:1px solid var(--border);
+  border-left:3px solid var(--gold);
+  padding:10px 18px; border-radius:8px; font-size:13px; font-weight:400;
+  white-space:nowrap; z-index:500; opacity:0;
+  transition:opacity .25s, transform .25s;
+  pointer-events:none;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+.pr-summary {
+  margin:0 18px 10px;
+  background:linear-gradient(135deg,rgba(245,166,35,0.08),rgba(247,107,28,0.05));
+  border:1px solid rgba(245,166,35,0.25); border-radius:var(--radius);
+  padding:14px 16px;
+}
+.pr-summary-title {
+  font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:10px;
+}
+.pr-summary-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:5px 0; border-bottom:1px solid rgba(245,166,35,0.1); font-size:13px;
+}
+.pr-summary-row:last-child { border-bottom:none; }
+
 .set-header-row {
   display:grid; grid-template-columns:36px 1fr 1fr 44px;
   gap:8px; padding:6px 16px 4px;
@@ -362,7 +455,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 <div class="view active" id="view-today">
   <div class="topbar">
     <div>
-      <div class="topbar-title">SBD Tracker</div>
+      <div class="topbar-title" id="topbar-title">SBD Tracker</div>
       <div class="topbar-sub" id="today-date"></div>
     </div>
     <div class="topbar-badge" id="today-block-badge"></div>
@@ -413,6 +506,29 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
     <div><div class="topbar-title">Indstillinger</div></div>
   </div>
   <div class="settings-section">
+    <div class="settings-label">Profil</div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <span class="settings-row-label">Aktiv profil</span>
+        <div style="display:flex;gap:8px;">
+          <button id="btn-main" onclick="switchProfile('main')"
+            style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);
+                   font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+                   letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+                   background:var(--gold);color:var(--ink);">
+            Oliver
+          </button>
+          <button id="btn-partner" onclick="switchProfile('partner')"
+            style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);
+                   font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+                   letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+                   background:var(--surface2);color:var(--muted);">
+            Ellen
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="settings-label">Pausetider</div>
     <div class="settings-card">
       <div class="settings-row">
@@ -453,8 +569,8 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
       </div>
     </div>
 
-    <div class="settings-label">1RM — Aktuelle tal</div>
-    <div class="settings-card">
+    <div class="settings-label sbd-only">1RM — Aktuelle tal</div>
+    <div class="settings-card sbd-only">
       <div class="settings-row">
         <span class="settings-row-label">Squat</span>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -484,8 +600,8 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
       </div>
     </div>
 
-    <div class="settings-label">Mål efter dette program</div>
-    <div class="settings-card">
+    <div class="settings-label sbd-only">Mål efter dette program</div>
+    <div class="settings-card sbd-only">
       <div class="settings-row"><span class="settings-row-label">Squat</span><span class="settings-row-val" id="setting-sq-target" style="color:var(--sq)"></span></div>
       <div class="settings-row"><span class="settings-row-label">Bench</span><span class="settings-row-val" id="setting-bp-target" style="color:var(--bp)"></span></div>
       <div class="settings-row"><span class="settings-row-label">Deadlift</span><span class="settings-row-val" id="setting-dl-target" style="color:var(--dl)"></span></div>
@@ -515,6 +631,8 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
     <button class="timer-btn timer-skip" onclick="skipTimer()">Spring over</button>
   </div>
 </div>
+
+<div class="toast" id="toast"></div>
 
 <!-- BOTTOM NAV -->
 <nav class="bottom-nav">
@@ -620,79 +738,136 @@ function getSBDScheme(lift, week) {
   const test = isTest(week);
   const oneRM = lift === 'squat' ? getSQ() : lift === 'bench' ? getBP() : getDL();
 
+  // [sets, reps_target, pct, reps_min, reps_max]
   const schemes = {
     squat: {
-      1: dl ? [3,4,0.75]  : [[5,6,0.70],[5,6,0.75],[5,6,0.77]][Math.min(week-1,2)%3],
-      2: dl ? [2,3,0.80]  : [[4,4,0.80],[4,4,0.82],[4,4,0.84]][(week-5)%3],
-      3: test ? [1,1,1.065] : dl ? null : [[4,3,0.865],[3,2,0.91],[3,1,0.955],[1,1,1.065]][Math.min(week-9,3)],
+      1: dl ? [3,4,0.75,3,5]  : [[5,6,0.70,5,7],[5,6,0.75,5,7],[5,6,0.77,5,7]][Math.min(week-1,2)%3],
+      2: dl ? [2,3,0.80,2,4]  : [[4,4,0.80,3,5],[4,4,0.82,3,5],[4,4,0.84,3,5]][(week-5)%3],
+      3: test ? [1,1,1.065,1,1] : dl ? null : [[4,3,0.865,2,4],[3,2,0.91,1,3],[3,1,0.955,1,2],[1,1,1.065,1,1]][Math.min(week-9,3)],
     },
     bench: {
-      1: dl ? [3,4,0.735] : [[5,6,0.70],[5,6,0.735],[5,6,0.765]][Math.min(week-1,2)%3],
-      2: dl ? [2,3,0.795] : [[5,4,0.795],[5,4,0.825],[5,4,0.85]][(week-5)%3],
-      3: test ? [1,1,1.065] : dl ? null : [[4,3,0.88],[4,2,0.91],[3,1,0.94],[1,1,1.065]][Math.min(week-9,3)],
+      1: dl ? [3,4,0.735,3,5] : [[5,6,0.70,5,7],[5,6,0.735,5,7],[5,6,0.765,5,7]][Math.min(week-1,2)%3],
+      2: dl ? [2,3,0.795,2,4] : [[5,4,0.795,3,5],[5,4,0.825,3,5],[5,4,0.85,3,5]][(week-5)%3],
+      3: test ? [1,1,1.065,1,1] : dl ? null : [[4,3,0.88,2,4],[4,2,0.91,1,3],[3,1,0.94,1,2],[1,1,1.065,1,1]][Math.min(week-9,3)],
     },
     deadlift: {
-      1: dl ? [2,3,0.735] : [[4,5,0.70],[4,5,0.735],[4,5,0.765]][Math.min(week-1,2)%3],
-      2: dl ? [2,2,0.795] : [[4,3,0.795],[4,3,0.825],[4,3,0.85]][(week-5)%3],
-      3: test ? [1,1,1.065] : dl ? null : [[3,2,0.88],[3,2,0.91],[2,1,0.94],[1,1,1.065]][Math.min(week-9,3)],
+      1: dl ? [2,3,0.735,2,4] : [[4,5,0.70,4,6],[4,5,0.735,4,6],[4,5,0.765,4,6]][Math.min(week-1,2)%3],
+      2: dl ? [2,2,0.795,1,3] : [[4,3,0.795,2,4],[4,3,0.825,2,4],[4,3,0.85,2,4]][(week-5)%3],
+      3: test ? [1,1,1.065,1,1] : dl ? null : [[3,2,0.88,1,3],[3,2,0.91,1,2],[2,1,0.94,1,1],[1,1,1.065,1,1]][Math.min(week-9,3)],
     }
   };
 
   const s = schemes[lift][b];
   if (!s) return null;
-  const [sets, reps, pct] = s;
-  return { sets, reps, kg: r(oneRM * pct), pct: Math.round(pct*100) };
+  const [sets, reps, pct, rMin, rMax] = s;
+  const repsRange = rMin === rMax ? `${rMin}` : `${rMin}–${rMax}`;
+  let kg = r(oneRM * pct);
+
+  // Apply pending autoreg adjustment if available
+  const liftName = lift === 'squat' ? 'Squat' : lift === 'bench' ? 'Bench Press' : 'Deadlift (Conv.)';
+  const autoKg = getAutoregKg(liftName, kg);
+  if (autoKg) kg = autoKg;
+
+  return { sets, reps, repsRange, kg, pct: Math.round(pct*100) };
 }
 
-// ── FIXED ACCESSORY TEMPLATES (same every time, regardless of block) ──────
-// These never change — you progress them yourself over time
+// ── FIXED ACCESSORY TEMPLATES ────────────────────────────────────────────────
+// Din version — omstruktureret for fatigue-minimering
+// Lower primær: kun direkte squat-støtte (ikke tunge compound accessories)
+// Lower sekundær: tunge accessory compound-dag
+// B&B: max 4 øvelser, Jefferson Curl rykket til sekundær
+// Compound accessories: 4–6 reps / Isolationer: 8–12 reps
+
 const ACC_TEMPLATES = {
-  // CST primær (dag 1)
+  // CST primær (dag 1) — Bench fokus
   cst1: [
-    { name:'Incline DB Press',              badge:'acc', sets:4, reps:5, kg:56    },
-    { name:'Chest Fly (Machine)',           badge:'acc', sets:4, reps:5, kg:62.5  },
-    { name:'Lateral Raise (Machine)',       badge:'acc', sets:4, reps:6, kg:135   },
-    { name:'Overhead Triceps Ext. (Cable)', badge:'acc', sets:4, reps:6, kg:29.65 },
+    { name:'Incline DB Press',               badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:56    },
+    { name:'Chest Fly (Machine)',            badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:62.5  },
+    { name:'Lateral Raise (Machine)',        badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:135   },
+    { name:'Overhead Triceps Ext. (Cable)',  badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:29.65 },
   ],
-  // Lower primær (dag 2)
+  // Lower primær (dag 2) — Squat fokus, minimal fatigue
   low1: [
-    { name:'Hack Squat (Machine)',          badge:'acc', sets:4, reps:5, kg:97.5  },
-    { name:'Hip Thrust (Barbell)',          badge:'acc', sets:4, reps:6, kg:85    },
-    { name:'Leg Extension (Machine)',       badge:'acc', sets:4, reps:6, kg:90    },
-    { name:'Seated Leg Curl (Machine)',     badge:'acc', sets:4, reps:6, kg:87.5  },
-    { name:'Single Leg Calf Raise (BB)',    badge:'acc', sets:4, reps:6, kg:130   },
+    { name:'Seated Leg Curl (Machine)',      badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:87.5  },
+    { name:'Leg Extension (Machine)',        badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:90    },
+    { name:'Single Leg Calf Raise (BB)',     badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:130   },
+    { name:'Ab-arbejde',                     badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:0,    note:'Cable crunch, hanging leg raise eller plank — vælg én.' },
   ],
-  // B&B primær (dag 4)
+  // B&B primær (dag 4) — Deadlift fokus, max 4 øvelser
   bb1: [
-    { name:'Smith Machine Row',             badge:'acc', sets:4, reps:5, kg:87.5  },
-    { name:'Lat Pulldown Wide Grip',        badge:'acc', sets:4, reps:6, kg:77.6  },
-    { name:'Seated Cable Row (V-Grip)',     badge:'acc', sets:4, reps:6, kg:79    },
-    { name:'Jefferson Curl',               badge:'acc', sets:4, reps:6, kg:40,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
-    { name:'Reverse Curl (Cable)',          badge:'acc', sets:4, reps:6, kg:14.7  },
-    { name:'Preacher Curl (DB)',            badge:'acc', sets:4, reps:6, kg:22.9  },
+    { name:'Smith Machine Row',              badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:87.5  },
+    { name:'Lat Pulldown Wide Grip',         badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:77.6  },
+    { name:'Seated Cable Row (V-Grip)',      badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:79    },
+    { name:'Reverse Curl (Cable)',           badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:14.7  },
   ],
-  // CST sekundær (dag 5)
+  // CST sekundær (dag 5) — OHP fokus
   cst2: [
-    { name:'Incline DB Press (variation)', badge:'acc', sets:4, reps:5, kg:50    },
-    { name:'Chest Fly (Machine)',          badge:'acc', sets:4, reps:6, kg:57.5  },
-    { name:'Rear Delt Reverse Fly (Machine)', badge:'acc', sets:4, reps:6, kg:120 },
-    { name:'Triceps Extension (Cable)',    badge:'acc', sets:4, reps:6, kg:25    },
+    { name:'Incline DB Press (variation)',   badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:50    },
+    { name:'Rear Delt Reverse Fly (Machine)',badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:120   },
+    { name:'Chest Fly (Machine)',            badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:57.5  },
+    { name:'Preacher Curl (DB)',             badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:22.9  },
+    { name:'Triceps Extension (Cable)',      badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:25    },
   ],
-  // Lower sekundær (dag 7)
+  // Lower sekundær (dag 7) — tung accessory compound-dag
   low2: [
-    { name:'Hack Squat (Machine)',         badge:'acc', sets:4, reps:5, kg:90    },
-    { name:'Hip Thrust (Barbell)',         badge:'acc', sets:4, reps:6, kg:80    },
-    { name:'Hip Adduction (Machine)',      badge:'acc', sets:4, reps:6, kg:70    },
-    { name:'Seated Leg Curl (Machine)',    badge:'acc', sets:4, reps:6, kg:82.5  },
-    { name:'Ab-arbejde',                   badge:'acc', sets:4, reps:6, kg:0,    note:'Cable crunch, hanging leg raise eller plank — vælg én.' },
+    { name:'Hack Squat (Machine)',           badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:97.5  },
+    { name:'Hip Thrust (Barbell)',           badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:85    },
+    { name:'Hip Adduction (Machine)',        badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:70    },
+    { name:'Seated Leg Curl (Machine)',      badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:82.5  },
+    { name:'Single Leg Calf Raise (BB)',     badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:130   },
   ],
-  // B&B sekundær (dag 8)
+  // B&B sekundær (dag 8) — Pull-up fokus + Jefferson Curl her
   bb2: [
-    { name:'Smith Machine Row',            badge:'acc', sets:4, reps:5, kg:82.5  },
-    { name:'Lat Pulldown Wide Grip',       badge:'acc', sets:4, reps:6, kg:72.5  },
-    { name:'Seated Cable Row (V-Grip)',    badge:'acc', sets:4, reps:6, kg:75    },
-    { name:'Jefferson Curl',              badge:'acc', sets:4, reps:6, kg:40,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
-    { name:'Preacher Curl (DB)',           badge:'acc', sets:4, reps:6, kg:22.9  },
+    { name:'Smith Machine Row',              badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:82.5  },
+    { name:'Lat Pulldown Wide Grip',         badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:72.5  },
+    { name:'Jefferson Curl',                 badge:'acc', sets:3, reps:8, repsRange:'6–10',kg:40,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
+    { name:'Preacher Curl (DB)',             badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:22.9  },
+  ],
+};
+
+// ── PARTNER TEMPLATES (samme split, kun accessories, styrke 4-6 reps) ────────
+const PARTNER_TEMPLATES = {
+  cst1: [
+    { name:'Incline DB Press',               sets:3, reps:5, repsRange:'4–6', kg:20   },
+    { name:'Chest Fly (Machine)',            sets:3, reps:10,repsRange:'8–12',kg:30   },
+    { name:'Lateral Raise (Machine)',        sets:3, reps:5, repsRange:'4–6', kg:50   },
+    { name:'Overhead Triceps Ext. (Cable)', sets:3, reps:10,repsRange:'8–12',kg:15   },
+    { name:'DB Skulder Press',               sets:3, reps:5, repsRange:'4–6', kg:15   },
+  ],
+  low1: [
+    { name:'Hack Squat (Machine)',           sets:3, reps:5, repsRange:'4–6', kg:40   },
+    { name:'Hip Thrust (Barbell)',           sets:3, reps:5, repsRange:'4–6', kg:40   },
+    { name:'Seated Leg Curl (Machine)',      sets:3, reps:5, repsRange:'4–6', kg:40   },
+    { name:'Leg Extension (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:40   },
+    { name:'Single Leg Calf Raise (BB)',     sets:3, reps:10,repsRange:'8–12',kg:40   },
+  ],
+  bb1: [
+    { name:'Smith Machine Row',              sets:3, reps:5, repsRange:'4–6', kg:30   },
+    { name:'Lat Pulldown Wide Grip',         sets:3, reps:5, repsRange:'4–6', kg:30   },
+    { name:'Seated Cable Row (V-Grip)',      sets:3, reps:5, repsRange:'4–6', kg:30   },
+    { name:'Preacher Curl (DB)',             sets:3, reps:10,repsRange:'8–12',kg:10   },
+    { name:'Reverse Curl (Cable)',           sets:3, reps:10,repsRange:'8–12',kg:10   },
+  ],
+  cst2: [
+    { name:'OHP (Barbell/DB)',               sets:3, reps:5, repsRange:'4–6', kg:20   },
+    { name:'Rear Delt Reverse Fly (Machine)',sets:3, reps:10,repsRange:'8–12',kg:40   },
+    { name:'Chest Fly (Machine)',            sets:3, reps:10,repsRange:'8–12',kg:25   },
+    { name:'Triceps Extension (Cable)',      sets:3, reps:10,repsRange:'8–12',kg:12.5 },
+    { name:'DB Curl',                        sets:3, reps:10,repsRange:'8–12',kg:10   },
+  ],
+  low2: [
+    { name:'Hip Thrust (Barbell)',           sets:3, reps:5, repsRange:'4–6', kg:50   },
+    { name:'Hip Adduction (Machine)',        sets:3, reps:5, repsRange:'4–6', kg:40   },
+    { name:'Hack Squat (Machine)',           sets:3, reps:10,repsRange:'8–12',kg:40   },
+    { name:'Seated Leg Curl (Machine)',      sets:3, reps:10,repsRange:'8–12',kg:35   },
+    { name:'Ab-arbejde',                     sets:3, reps:10,repsRange:'8–12',kg:0,   note:'Cable crunch, hanging leg raise eller plank — vælg én.' },
+  ],
+  bb2: [
+    { name:'Assisted Pull-up / Lat Pulldown',sets:3, reps:5, repsRange:'4–6', kg:30  },
+    { name:'Smith Machine Row',              sets:3, reps:5, repsRange:'4–6', kg:25   },
+    { name:'Face Pull',                      sets:3, reps:10,repsRange:'8–12',kg:20   },
+    { name:'DB Curl',                        sets:3, reps:10,repsRange:'8–12',kg:10   },
+    { name:'Preacher Curl (DB)',             sets:3, reps:10,repsRange:'8–12',kg:10   },
   ],
 };
 
@@ -704,9 +879,9 @@ function getPrimaryLift(dayId, week) {
     case 'cst1': return { name: test ? 'Bench Press — 1RM Forsøg' : 'Bench Press', badge:'bp', type:'primary', scheme: getSBDScheme('bench', week), warmup: true, note: test ? testNote : null };
     case 'low1': return { name: test ? 'Squat — 1RM Forsøg' : 'Squat',            badge:'sq', type:'primary', scheme: getSBDScheme('squat', week),  warmup: true, note: test ? testNote : null };
     case 'bb1':  return { name: test ? 'Deadlift — 1RM Forsøg' : 'Deadlift (Conv.)', badge:'dl', type:'primary', scheme: getSBDScheme('deadlift', week), warmup: true, note: test ? 'Conventional. Fuldt fokus. 10 min. pause.' : null };
-    case 'cst2': return { name:'OHP', badge:'bp', type:'secondary', scheme:{ sets: 4, reps: 8, kg: 50, pct: null }, warmup: true };
-    case 'low2': return { name:'Front Squat / SSB', badge:'sq', type:'secondary', scheme:{ sets: 4, reps: 8, kg: 77.5, pct: null }, warmup: true };
-    case 'bb2':  return { name:'Weighted Pull-up', badge:'dl', type:'secondary', scheme:{ sets: 4, reps: 8, kg: 10, pct: null }, warmup: false, note:'Tilføj vægt via bælte. Kør bodyweight hvis 8 reps er svært.' };
+    case 'cst2': return { name:'OHP', badge:'bp', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 50, pct: null }, warmup: true };
+    case 'low2': return { name:'Front Squat / SSB', badge:'sq', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 77.5, pct: null }, warmup: true };
+    case 'bb2':  return { name:'Weighted Pull-up', badge:'dl', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 10, pct: null }, warmup: false, note:'Tilføj vægt via bælte. Kør bodyweight hvis 8 reps er svært.' };
     default: return null;
   }
 }
@@ -717,36 +892,97 @@ function getBackdownScheme(topKg, week) {
   if (!topKg || topKg <= 0) return null;
   if (isDeload(week) || isTest(week)) return null;
   const b = getBlock(week);
-  // Blok 1: 3×5 @ 80%, Blok 2: 2×4 @ 82.5%, Blok 3: 1×3 @ 85%
-  const config = { 1: [3,5,0.80], 2: [2,4,0.825], 3: [1,3,0.85] }[b];
+  // Blok 1: 3×4-6 @ 80%, Blok 2: 2×3-5 @ 82.5%, Blok 3: 1×2-4 @ 85%
+  const config = { 1: [3,'4–6',0.80], 2: [2,'3–5',0.825], 3: [1,'2–4',0.85] }[b];
   if (!config) return null;
-  const [sets, reps, pct] = config;
-  return { sets, reps, kg: r(topKg * pct) };
+  const [sets, repsRange, pct] = config;
+  return { sets, reps: parseInt(repsRange), repsRange, kg: r(topKg * pct) };
 }
 
-// ── BUILD FULL EXERCISE LIST FOR A DAY ───────────────────────────────────
+// ── RPE EXPECTATIONS ─────────────────────────────────────────────────────────
+function getExpectedRPE(type, week) {
+  const b = getBlock(week);
+  const dl = isDeload(week);
+  const test = isTest(week);
+
+  if (test) return { val: '9–10', cls: 'rpe-max' };
+  if (dl)   return { val: '5–6',  cls: 'rpe-easy' };
+
+  if (type === 'primary') {
+    if (b === 1) return { val: '6–7',   cls: 'rpe-easy' };
+    if (b === 2) return { val: '7.5–8.5', cls: 'rpe-mod' };
+    return             { val: '8.5–9.5', cls: 'rpe-hard' };
+  }
+  if (type === 'secondary') {
+    if (b === 1) return { val: '6–7',   cls: 'rpe-easy' };
+    if (b === 2) return { val: '7–8',   cls: 'rpe-mod'  };
+    return             { val: '8–9',    cls: 'rpe-hard' };
+  }
+  if (type === 'backdown') {
+    if (b === 1) return { val: '5–6',   cls: 'rpe-easy' };
+    if (b === 2) return { val: '6–7',   cls: 'rpe-easy' };
+    return             { val: '7–8',    cls: 'rpe-mod'  };
+  }
+  // accessories — fixed regardless of block
+  return { val: '7–8', cls: 'rpe-mod' };
+}
+
+function getLastReps(exName) {
+  const as = aState();
+  // Find the most recent completed day where this exercise was logged
+  const matches = as.completedDays
+    .slice()
+    .sort((a, b) => b - a);
+  for (const d of matches) {
+    if (d >= as.totalDays) continue; // skip current day
+    const log = as.logs[`day${d}`];
+    if (!log) continue;
+    const exLog = log.exercises.find(e => e.name === exName);
+    if (!exLog) continue;
+    const doneSets = exLog.sets.filter(s => s.done && parseInt(s.reps) > 0);
+    if (!doneSets.length) continue;
+    // Return average reps across done sets, rounded
+    const avg = doneSets.reduce((acc, s) => acc + parseInt(s.reps), 0) / doneSets.length;
+    return Math.round(avg);
+  }
+  return null;
+}
+
+function rpeHtml(type, week, exName) {
+  const { val, cls } = getExpectedRPE(type, week);
+  const lastReps = exName ? getLastReps(exName) : null;
+  const hint = lastReps ? ` · ca. ${lastReps} reps igen` : '';
+  return `<span class="rpe-pill ${cls}">RPE ${val}${hint}</span>`;
+}
+
 function getExercises(dayId, week) {
+  const isPartner = state.profile === 'partner';
+
+  if (isPartner) {
+    const template = PARTNER_TEMPLATES[dayId] || [];
+    return template.map(a => ({
+      name: a.name, badge: 'acc', type: 'acc',
+      scheme: { sets: a.sets, reps: a.reps, repsRange: a.repsRange, kg: a.kg },
+      note: a.note || null, warmup: false,
+    }));
+  }
+
   const primary = getPrimaryLift(dayId, week);
   const accTemplate = ACC_TEMPLATES[dayId] || [];
 
   const accExercises = accTemplate.map(a => ({
-    name: a.name, badge: a.badge, type: 'acc',
-    scheme: { sets: a.sets, reps: a.reps, kg: a.kg },
-    note: a.note || null,
-    warmup: false,
+    name: a.name, badge: a.badge || 'acc', type: 'acc',
+    scheme: { sets: a.sets, reps: a.reps, repsRange: a.repsRange || '4–6', kg: a.kg },
+    note: a.note || null, warmup: false,
   }));
 
   if (!primary) return accExercises;
 
-  // Build backdown entry using primary's programmed kg as top weight
   const bdScheme = primary.scheme ? getBackdownScheme(primary.scheme.kg, week) : null;
   const backdown = bdScheme ? [{
     name: primary.name + ' — Backdown',
-    badge: primary.badge,
-    type: 'backdown',
-    scheme: bdScheme,
-    note: null,
-    warmup: false,
+    badge: primary.badge, type: 'backdown',
+    scheme: bdScheme, note: null, warmup: false,
   }] : [];
 
   return [primary, ...backdown, ...accExercises];
@@ -754,19 +990,30 @@ function getExercises(dayId, week) {
 
 // ─── STATE ──────────────────────────────────────────────────────────────────
 let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
-  totalDays: 0,
-  logs: {},
-  completedDays: [],
-  timerPrimary: 240,
-  timerAcc: 120,
+  totalDays: 0, logs: {}, completedDays: [],
+  timerPrimary: 240, timerAcc: 120,
   oneRM: { sq: 117.02, bp: 89.89, dl: 178.19 },
-  programHistory: [],                           // [{sq,bp,dl,date,program}] past cycles
+  programHistory: [], exerciseNotes: {}, profile: 'main',
+  pr: {},        // { exName: { e1rm, repPR: {kg: reps}, volPR, setPR: {kg: sets} } }
+  autoregAdj: {}, // { exName: pctAdj } — pending adjustment for next session
 };
 
-if (!state.timerPrimary) state.timerPrimary = 240;
-if (!state.timerAcc)     state.timerAcc     = 120;
-if (!state.oneRM)        state.oneRM        = { sq: 117.02, bp: 89.89, dl: 178.19 };
-if (!state.exerciseNotes) state.exerciseNotes = {};
+if (!state.timerPrimary)   state.timerPrimary   = 240;
+if (!state.timerAcc)       state.timerAcc       = 120;
+if (!state.oneRM)          state.oneRM          = { sq: 117.02, bp: 89.89, dl: 178.19 };
+if (!state.exerciseNotes)  state.exerciseNotes  = {};
+if (!state.programHistory) state.programHistory = [];
+if (!state.profile)        state.profile        = 'main';
+
+// Partner has own separate storage
+let partnerState = JSON.parse(localStorage.getItem('sbd_partner') || 'null') || {
+  totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {}, pr: {}, autoregAdj: {},
+};
+
+if (!state.pr) state.pr = {};
+if (!partnerState.pr) partnerState.pr = {};
+if (!state.autoregAdj) state.autoregAdj = {};
+if (!partnerState.autoregAdj) partnerState.autoregAdj = {};
 
 // Migrate old state format if needed
 if (state.week !== undefined && state.totalDays === undefined) {
@@ -776,7 +1023,6 @@ if (state.week !== undefined && state.totalDays === undefined) {
     return m ? (parseInt(m[1])-1)*8 + parseInt(m[2]) : null;
   }).filter(x => x !== null);
   delete state.week; delete state.cycleDay; delete state.completedWorkouts;
-  // Migrate logs
   const newLogs = {};
   Object.entries(state.logs || {}).forEach(([k, v]) => {
     const m = k.match(/w(\d+)_d(\d+)/);
@@ -785,12 +1031,25 @@ if (state.week !== undefined && state.totalDays === undefined) {
   state.logs = newLogs;
 }
 
-function saveState() { localStorage.setItem('sbd_state', JSON.stringify(state)); }
+function saveState() {
+  localStorage.setItem('sbd_state', JSON.stringify(state));
+  localStorage.setItem('sbd_partner', JSON.stringify(partnerState));
+}
 
-// Derived values from totalDays
-function getWeek()     { return Math.min(12, Math.floor(state.totalDays / 7) + 1); }
-function getCycleDay() { return state.totalDays % 8; }
-function logKey()      { return `day${state.totalDays}`; }
+// Active state — partner uses partnerState for logs/days, main state for settings
+function aState() { return state.profile === 'partner' ? partnerState : state; }
+
+// Derived values — always from active state's totalDays
+function getWeek()     { return Math.min(12, Math.floor(aState().totalDays / 7) + 1); }
+function getCycleDay() { return aState().totalDays % 8; }
+function logKey()      { return `day${aState().totalDays}`; }
+
+function switchProfile(p) {
+  state.profile = p;
+  saveState();
+  renderToday();
+  renderSettings();
+}
 
 // ─── NAVIGATION ─────────────────────────────────────────────────────────────
 function navigate(id, btn) {
@@ -822,8 +1081,11 @@ function renderToday() {
   const content = document.getElementById('today-content');
 
   // Progress bar — based on totalDays out of 12 weeks × 7 days
+  const titleEl = document.getElementById('topbar-title');
+  if (titleEl) titleEl.textContent = state.profile === 'partner' ? 'Ellen' : 'SBD Tracker';
+
   const totalProgramDays = 12 * 7;
-  const pct = Math.min(100, Math.round(state.totalDays / totalProgramDays * 100));
+  const pct = Math.min(100, Math.round(aState().totalDays / totalProgramDays * 100));
   let html = `
     <div class="progress-bar-wrap" style="padding-top:14px;">
       <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -861,10 +1123,11 @@ function renderToday() {
 
   const key = logKey();
   const exercises = getExercises(day.id, week);
+  const as = aState();
 
   // Init log if needed
-  if (!state.logs[key]) {
-    state.logs[key] = {
+  if (!as.logs[key]) {
+    as.logs[key] = {
       exercises: exercises.map(ex => ({
         name: ex.name,
         sets: Array.from({ length: ex.scheme.sets }, () => ({
@@ -877,8 +1140,8 @@ function renderToday() {
     saveState();
   }
 
-  const log = state.logs[key];
-  const alreadyDone = state.completedDays.includes(state.totalDays);
+  const log = as.logs[key];
+  const alreadyDone = as.completedDays.includes(as.totalDays);
 
   exercises.forEach((ex, ei) => {
     const logEx = log.exercises[ei];
@@ -887,13 +1150,71 @@ function renderToday() {
     const showWarmup = ex.warmup && isPrimary;
     const badgeClass = isBackdown ? `badge-bd-${ex.badge}` : `badge-${ex.badge}`;
     const badgeLabel = isBackdown ? 'BD' : ex.badge === 'acc' ? 'ACC' : ex.type === 'secondary' ? 'SEK' : ex.badge.toUpperCase();
+    const repsDisplay = ex.scheme.repsRange || ex.scheme.reps;
     const kgLabel = ex.scheme.kg > 0 ? ` · ${ex.scheme.kg} kg${ex.scheme.pct ? ' ('+ex.scheme.pct+'%)' : ''}` : ex.scheme.kg === 0 ? ' · Kropsvægt' : '';
+
+    // RPE-based weight hint — RIR formula for all lifts
+    // Primary SBD: uses actual 1RM. Accessories: estimates e1RM from last logged set via Epley
+    let rpeWeightHint = '';
+    if (ex.scheme.kg > 0 || ex.type === 'acc') {
+      const liftRMMap = {
+        'Bench Press': 'bp', 'Bench Press — 1RM Forsøg': 'bp',
+        'Squat': 'sq',       'Squat — 1RM Forsøg': 'sq',
+        'Deadlift (Conv.)': 'dl', 'Deadlift — 1RM Forsøg': 'dl',
+        'OHP': 'bp', 'Front Squat / SSB': 'sq', 'Weighted Pull-up': 'dl',
+      };
+      const baseName = ex.name.replace(' — Backdown','').replace(' — 1RM Forsøg','');
+      const rmKey = liftRMMap[ex.name] || liftRMMap[baseName];
+
+      let oneRM = 0;
+      if (rmKey) {
+        // Primary SBD lift — use actual 1RM
+        oneRM = rmKey === 'bp' ? getBP() : rmKey === 'sq' ? getSQ() : getDL();
+      } else {
+        // Accessory — estimate e1RM from last logged set using Epley
+        const as = aState();
+        const matchingDays = as.completedDays
+          .filter(d => CYCLE[d % 8].id === CYCLE[getCycleDay()].id)
+          .sort((a, b) => b - a);
+        for (const d of matchingDays) {
+          const log = as.logs[`day${d}`];
+          if (!log) continue;
+          const exLog = log.exercises.find(e => e.name === ex.name);
+          if (!exLog) continue;
+          const doneSets = exLog.sets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+          if (!doneSets.length) continue;
+          // Pick heaviest set
+          const best = doneSets.reduce((a, b) =>
+            epley(parseFloat(a.kg), parseInt(a.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? a : b
+          );
+          oneRM = epley(parseFloat(best.kg), parseInt(best.reps));
+          break;
+        }
+      }
+
+      if (oneRM > 0) {
+        const rpeInfo = getExpectedRPE(ex.type, week);
+        const rpeParts = rpeInfo.val.split('–');
+        const targetRPE = rpeParts.length > 1
+          ? (parseFloat(rpeParts[0]) + parseFloat(rpeParts[1])) / 2
+          : parseFloat(rpeParts[0]);
+        const RIR = 10 - targetRPE;
+        const repParts = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
+        const targetReps = repParts.length > 1
+          ? (parseInt(repParts[0]) + parseInt(repParts[1])) / 2
+          : parseInt(repParts[0]);
+        const suggested = r(oneRM / (1 + (RIR + targetReps - 1) / 30));
+        if (suggested > 0 && Math.abs(suggested - ex.scheme.kg) >= 2.5) {
+          rpeWeightHint = `<span style="font-size:11px;color:var(--muted);margin-left:4px;">(~${suggested} kg ved RPE ${targetRPE})</span>`;
+        }
+      }
+    }
 
     html += `<div class="ex-card">
       <div class="ex-header">
         <div>
           <div class="ex-name">${ex.name}</div>
-          <div class="ex-target">${ex.scheme.sets} sæt × ${ex.scheme.reps} reps${kgLabel}</div>
+          <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeWeightHint} &nbsp;${rpeHtml(ex.type, week, ex.name)}</div>
         </div>
         <div class="ex-badge ${badgeClass}">${badgeLabel}</div>
       </div>`;
@@ -916,17 +1237,24 @@ function renderToday() {
       </div>`;
     }
 
-    html += `<div class="set-header-row">
+    const showRPEInput = isPrimary || isBackdown;
+    const totalSets = logEx.sets.length;
+
+    html += `<div class="set-header-row" style="grid-template-columns:${showRPEInput ? '36px 1fr 1fr 52px 44px' : '36px 1fr 1fr 44px'};">
         <div class="set-col-label">Sæt</div>
         <div class="set-col-label">Vægt (kg)</div>
         <div class="set-col-label">Reps</div>
+        ${showRPEInput ? '<div class="set-col-label">RPE</div>' : ''}
         <div></div>
       </div>`;
 
     logEx.sets.forEach((s, si) => {
       const done = s.done;
+      const isLastSet = si === totalSets - 1;
+      const showRPE = showRPEInput && isLastSet;
       const kgPlaceholder = ex.scheme.kg > 0 ? ex.scheme.kg : ex.scheme.kg === 0 ? 'BW' : '—';
-      html += `<div class="set-row ${done ? 'completed' : ''}" id="setrow_${ei}_${si}">
+      const gridCols = showRPEInput ? '36px 1fr 1fr 52px 44px' : '36px 1fr 1fr 44px';
+      html += `<div class="${showRPEInput ? 'set-row-5col' : 'set-row'} ${done ? 'completed' : ''}" id="setrow_${ei}_${si}" style="grid-template-columns:${gridCols};">
         <div class="set-num">${si + 1}</div>
         <input class="set-input ${done ? 'completed-input' : ''}" type="number" inputmode="decimal"
           value="${s.kg}" placeholder="${kgPlaceholder}"
@@ -934,15 +1262,45 @@ function renderToday() {
         <input class="set-input ${done ? 'completed-input' : ''}" type="number" inputmode="numeric"
           value="${s.reps}" placeholder="${ex.scheme.reps}"
           onchange="updateSet(${ei},${si},'reps',this.value)" id="reps_${ei}_${si}">
+        ${showRPE ? `<input class="rpe-input" type="number" inputmode="decimal" step="0.5" min="1" max="10"
+          value="${s.rpe || ''}" placeholder="RPE"
+          onchange="updateSet(${ei},${si},'rpe',this.value)" id="rpe_${ei}_${si}">` : (showRPEInput ? '<div></div>' : '')}
         <button class="check-btn ${done ? 'done' : ''}" onclick="toggleSet(${ei},${si})" id="chk_${ei}_${si}">
           ${done ? '✓' : '○'}
         </button>
       </div>`;
     });
 
+    // Show autoreg suggestion after last set is completed on primary lifts
+    const lastSet = logEx.sets[totalSets - 1];
+    if (showRPEInput && lastSet?.done && lastSet?.rpe) {
+      const expectedRPE = getExpectedRPE(ex.type, week);
+      const expMid = parseFloat(expectedRPE.val.split('–')[1] || expectedRPE.val);
+      const actualRPE = parseFloat(lastSet.rpe);
+      const diff = actualRPE - expMid;
+      const currentKg = parseFloat(lastSet.kg) || ex.scheme.kg || 0;
+      let pctAdj = 0, nextKg = currentKg, cls = 'autoreg-hold';
+      if (diff <= -2)      { pctAdj =  0.05;  nextKg = r(currentKg*1.05);  cls='autoreg-up';   }
+      else if (diff <= -1) { pctAdj =  0.025; nextKg = r(currentKg*1.025); cls='autoreg-up';   }
+      else if (diff <= 0.5){ pctAdj =  0.0125;nextKg = r(currentKg*1.0125);cls='autoreg-hold'; }
+      else if (diff <= 1.5){ pctAdj = -0.025; nextKg = r(currentKg*0.975); cls='autoreg-down'; }
+      else                  { pctAdj = -0.05;  nextKg = r(currentKg*0.95);  cls='autoreg-down'; }
+
+      const actualReps = parseInt(lastSet.reps) || '?';
+      const nextRepsRange = ex.scheme.repsRange || ex.scheme.reps;
+      const icon = cls==='autoreg-up' ? '📈' : cls==='autoreg-down' ? '📉' : '✅';
+      html += `<div class="autoreg-bar autoreg-bar-${ei}">
+        <div class="autoreg-icon">${icon}</div>
+        <div class="autoreg-text ${cls}">
+          RPE ${actualRPE} · ${actualReps} reps — næste gang ca. <strong>${nextKg} kg · ${nextRepsRange} reps</strong>
+        </div>
+      </div>`;
+      saveAutoregAdjustment(ex.name, pctAdj, currentKg);
+    }
+
     // Editable note — persisted per exercise name globally
     const noteKey = `note_${ex.name.replace(/\s+/g,'_')}`;
-    const savedNote = state.exerciseNotes?.[noteKey] || ex.note || '';
+    const savedNote = aState().exerciseNotes?.[noteKey] || ex.note || '';
     html += `<div style="padding:8px 16px 10px;border-top:1px solid var(--border);">
       <textarea
         id="note-${ei}"
@@ -979,14 +1337,14 @@ function renderWarmupBadges(warmups) {
 
 function updateWarmupKg(ei, val) {
   const key = logKey();
-  if (!state.logs[key]) return;
-  state.logs[key].exercises[ei].warmupKg = val;
+  const as = aState();
+  if (!as.logs[key]) return;
+  as.logs[key].exercises[ei].warmupKg = val;
   saveState();
   const warmups = calcWarmups(val);
   const container = document.getElementById(`warmup-sets-${ei}`);
   if (container) container.innerHTML = renderWarmupBadges(warmups);
-  // Also pre-fill work sets with this kg
-  const exSets = state.logs[key].exercises[ei].sets;
+  const exSets = as.logs[key].exercises[ei].sets;
   exSets.forEach((s, si) => {
     if (!s.done) {
       s.kg = val;
@@ -998,72 +1356,125 @@ function updateWarmupKg(ei, val) {
 }
 
 function saveExerciseNote(noteKey, val) {
-  if (!state.exerciseNotes) state.exerciseNotes = {};
-  state.exerciseNotes[noteKey] = val;
+  const as = aState();
+  if (!as.exerciseNotes) as.exerciseNotes = {};
+  as.exerciseNotes[noteKey] = val;
   saveState();
 }
 
 function updateSet(ei, si, field, val) {
   const key = logKey();
-  state.logs[key].exercises[ei].sets[si][field] = val;
+  aState().logs[key].exercises[ei].sets[si][field] = val;
   saveState();
 }
 
 function toggleSet(ei, si) {
   const key = logKey();
-  const s = state.logs[key].exercises[ei].sets[si];
-
-  // Auto-fill defaults if empty
+  const as = aState();
+  const s = as.logs[key].exercises[ei].sets[si];
   const ex = getExercises(CYCLE[getCycleDay()].id, getWeek())[ei];
   if (!s.kg && ex.scheme.kg) s.kg = ex.scheme.kg;
   if (!s.reps) s.reps = ex.scheme.reps;
-
   s.done = !s.done;
   saveState();
 
-  // Start rest timer when a set is marked done
+  // Check PRs when set completed
+  let newPRs = [];
+  if (s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) {
+    const allSets = as.logs[key].exercises[ei].sets;
+    newPRs = checkPRs(ex.name, s.kg, s.reps, allSets);
+
+    // Auto-update 1RM if new e1RM PR on a primary SBD lift
+    if (newPRs.includes('1rm') && state.profile !== 'partner') {
+      const liftKeyMap = {
+        'Bench Press': 'bp', 'Bench Press — 1RM Forsøg': 'bp',
+        'Squat': 'sq',       'Squat — 1RM Forsøg': 'sq',
+        'Deadlift (Conv.)': 'dl', 'Deadlift — 1RM Forsøg': 'dl',
+      };
+      const liftKey = liftKeyMap[ex.name];
+      if (liftKey) {
+        const newE1RM = epley(parseFloat(s.kg), parseInt(s.reps));
+        const oldRM = state.oneRM[liftKey];
+        // Only update if meaningfully higher (>1%) to avoid noise from high-rep sets
+        if (newE1RM > oldRM * 1.01) {
+          state.oneRM[liftKey] = Math.round(newE1RM * 100) / 100;
+          saveState();
+          // Show toast notification
+          showToast(`${ex.name} 1RM opdateret → ${state.oneRM[liftKey].toFixed(1)} kg`);
+          // Refresh 1RM inputs in settings if visible
+          const inputMap = { bp: 'input-bp', sq: 'input-sq', dl: 'input-dl' };
+          const inputEl = document.getElementById(inputMap[liftKey]);
+          if (inputEl) inputEl.value = state.oneRM[liftKey];
+        }
+      }
+    }
+  }
+
   if (s.done) {
     const isPrimaryOrBD = ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown';
     const duration = isPrimaryOrBD ? state.timerPrimary : state.timerAcc;
     startTimer(duration, ex.name);
-  }
 
-  // Update UI without full re-render
+    // Autoreg: if this is the last set of a primary/backdown lift and RPE is logged
+    const totalSets = as.logs[key].exercises[ei].sets.length;
+    const isLastSet = si === totalSets - 1;
+    if (isPrimaryOrBD && isLastSet && s.rpe) {
+      const expectedRPE = getExpectedRPE(ex.type, getWeek());
+      const expMid = parseFloat(expectedRPE.val.split('–')[1] || expectedRPE.val);
+      const actualRPE = parseFloat(s.rpe);
+      const diff = actualRPE - expMid;
+      let pctAdj = 0;
+      if (diff <= -2)       pctAdj =  0.05;
+      else if (diff <= -1)  pctAdj =  0.025;
+      else if (diff <= 0.5) pctAdj =  0.0125;
+      else if (diff <= 1.5) pctAdj = -0.025;
+      else                  pctAdj = -0.05;
+      const currentKg = parseFloat(s.kg) || ex.scheme.kg || 0;
+      // Apply to remaining undone sets today
+      applyAutoregToday(ei, ex.name, pctAdj, currentKg);
+      // Save for next session
+      saveAutoregAdjustment(ex.name, pctAdj, currentKg);
+      // Refresh autoreg bar in UI
+      setTimeout(() => renderToday(), 100);
+    }
+  }
   const row = document.getElementById(`setrow_${ei}_${si}`);
   const chk = document.getElementById(`chk_${ei}_${si}`);
   const kgInput = document.getElementById(`kg_${ei}_${si}`);
   const repsInput = document.getElementById(`reps_${ei}_${si}`);
-
   if (s.done) {
     row.classList.add('completed');
     chk.classList.add('done'); chk.textContent = '✓';
     kgInput.classList.add('completed-input');
     repsInput.classList.add('completed-input');
-    kgInput.value = s.kg;
-    repsInput.value = s.reps;
+    kgInput.value = s.kg; repsInput.value = s.reps;
+    if (newPRs.length) showPRBadges(ei, si, newPRs);
   } else {
     row.classList.remove('completed');
     chk.classList.remove('done'); chk.textContent = '○';
     kgInput.classList.remove('completed-input');
     repsInput.classList.remove('completed-input');
+    row.querySelectorAll('.pr-badge').forEach(b => b.remove());
   }
 }
 
 function finishWorkout() {
-  if (!state.completedDays.includes(state.totalDays)) {
-    state.completedDays.push(state.totalDays);
+  const as = aState();
+  if (!as.completedDays.includes(as.totalDays)) {
+    as.completedDays.push(as.totalDays);
   }
   saveState();
 
-  // Check if this was a uge-12 SBD test day
+  // 1RM test only applies to main profile
+  if (state.profile === 'partner') { advanceDay(); return; }
+
   const week = getWeek();
   const dayId = CYCLE[getCycleDay()].id;
   if (week === 12) {
     const liftMap = { cst1: 'bp', low1: 'sq', bb1: 'dl' };
     const liftKey = liftMap[dayId];
     if (liftKey) {
-      // Read logged 1RM from first exercise sets
-      const log = state.logs[logKey()];
+      const log = as.logs[logKey()];
       const doneSets = log?.exercises[0]?.sets?.filter(s => s.done && parseFloat(s.kg) > 0) || [];
       if (doneSets.length > 0) {
         const newRM = Math.max(...doneSets.map(s => parseFloat(s.kg)));
@@ -1164,8 +1575,9 @@ function startNewProgram(newSQ, newBP, newDL) {
 }
 
 function advanceDay() {
+  const as = aState();
   const maxDays = 12 * 7;
-  if (state.totalDays < maxDays - 1) state.totalDays++;
+  if (as.totalDays < maxDays - 1) as.totalDays++;
   saveState();
   renderToday();
   document.getElementById('setting-week').textContent = getWeek();
@@ -1189,7 +1601,7 @@ function renderProgram() {
       // Count completed workout days that fell in this calendar week
       const weekStart = (w - 1) * 7;
       const weekEnd = w * 7;
-      const daysLogged = state.completedDays.filter(d => d >= weekStart && d < weekEnd).length;
+      const daysLogged = aState().completedDays.filter(d => d >= weekStart && d < weekEnd).length;
       const status = daysLogged > 0 ? (daysLogged >= 5 ? '✅' : `${daysLogged} dage`) : '';
       html += `<div class="prog-week-row" onclick="jumpToWeek(${w})">
         <div class="prog-week-num ${current ? 'current' : ''}">${w}</div>
@@ -1215,37 +1627,67 @@ function jumpToWeek(w) {
 }
 
 function renderHistory() {
-  const done = state.completedDays.slice().reverse();
+  const as = aState();
+  const done = as.completedDays.slice().reverse();
   document.getElementById('history-sub').textContent = `${done.length} træninger gennemført`;
   drawChart();
 
+  // PR summary for main SBD lifts
+  const pr = as.pr || {};
+  const prLifts = state.profile === 'partner'
+    ? [] // no SBD for partner
+    : [
+        { name:'Bench Press',        key:'Bench Press' },
+        { name:'Squat',              key:'Squat' },
+        { name:'Deadlift (Conv.)',   key:'Deadlift (Conv.)' },
+      ];
+
+  let prHtml = '';
+  const prRows = prLifts.map(l => {
+    const rec = pr[l.key];
+    if (!rec || !rec.e1rm) return null;
+    return `<div class="pr-summary-row">
+      <span style="font-weight:400;">${l.name}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;">
+        ${rec.e1rm.toFixed(1)} kg <span style="font-size:11px;color:var(--muted);">est. 1RM</span>
+      </span>
+    </div>`;
+  }).filter(Boolean);
+
+  if (prRows.length) {
+    prHtml = `<div class="pr-summary">
+      <div class="pr-summary-title">🏆 Personlige rekorder</div>
+      ${prRows.join('')}
+    </div>`;
+  }
+
   if (done.length === 0) {
     document.getElementById('history-content').innerHTML =
-      `<div class="hist-empty">Ingen gennemførte træninger endnu.<br>Kom i gang! 💪</div>`;
+      prHtml + `<div class="hist-empty">Ingen gennemførte træninger endnu.<br>Kom i gang! 💪</div>`;
     return;
   }
 
-  let html = '<div style="padding-top:4px;">';
+  let html = prHtml + '<div style="padding-top:4px;">';
   done.forEach(d => {
     const key = `day${d}`;
-    const log = state.logs[key];
+    const log = as.logs[key];
     const dayInfo = CYCLE[d % 8];
     if (!log || !dayInfo || dayInfo.type === 'rest') return;
     const w = Math.floor(d / 7) + 1;
-
     html += `<div class="hist-entry">
       <div class="hist-entry-header">
         <div class="hist-entry-day">${dayInfo.name}</div>
         <div class="hist-entry-date">Uge ${w} · Dag ${d + 1}</div>
       </div>`;
-
     log.exercises.forEach(ex => {
       const doneSets = ex.sets.filter(s => s.done);
       if (doneSets.length === 0) return;
       const maxKg = Math.max(...doneSets.map(s => parseFloat(s.kg) || 0));
+      const maxReps = Math.max(...doneSets.map(s => parseInt(s.reps) || 0));
+      const e1rm = maxKg > 0 && maxReps > 0 ? epley(maxKg, maxReps).toFixed(1) : null;
       html += `<div class="hist-lift-row">
         <span class="hist-lift-name">${ex.name}</span>
-        <span class="hist-lift-val">${doneSets.length} sæt${maxKg > 0 ? ' · ' + maxKg + ' kg' : ''}</span>
+        <span class="hist-lift-val">${doneSets.length} sæt · ${maxKg > 0 ? maxKg + ' kg' : ''}${e1rm ? ' <span style="font-size:11px;color:var(--muted);">~'+e1rm+' 1RM</span>' : ''}</span>
       </div>`;
     });
     html += `</div>`;
@@ -1267,26 +1709,40 @@ function update1RM(key, val) {
 }
 
 function renderSettings() {
+  const isPartner = state.profile === 'partner';
+
+  // Profile buttons
+  const btnMain = document.getElementById('btn-main');
+  const btnPartner = document.getElementById('btn-partner');
+  if (btnMain) {
+    btnMain.style.background = !isPartner ? 'var(--gold)' : 'var(--surface2)';
+    btnMain.style.color = !isPartner ? 'var(--ink)' : 'var(--muted)';
+    btnPartner.style.background = isPartner ? '#d4688a' : 'var(--surface2)';
+    btnPartner.style.color = isPartner ? 'white' : 'var(--muted)';
+  }
+
   document.getElementById('setting-week').textContent = getWeek();
   document.getElementById('setting-day').textContent = getCycleDay() + 1;
   document.getElementById('setting-timer-primary').textContent = fmtTime(state.timerPrimary);
   document.getElementById('setting-timer-acc').textContent = fmtTime(state.timerAcc);
 
-  // Populate 1RM input fields
-  document.getElementById('input-sq').value = getSQ();
-  document.getElementById('input-bp').value = getBP();
-  document.getElementById('input-dl').value = getDL();
+  // Hide SBD-specific sections for partner
+  const sbdSections = document.querySelectorAll('.sbd-only');
+  sbdSections.forEach(el => el.style.display = isPartner ? 'none' : '');
 
-  // Targets (+6.25%)
-  document.getElementById('setting-sq-target').textContent = (getSQ() * 1.0625).toFixed(2) + ' kg';
-  document.getElementById('setting-bp-target').textContent = (getBP() * 1.0625).toFixed(2) + ' kg';
-  document.getElementById('setting-dl-target').textContent = (getDL() * 1.0625).toFixed(2) + ' kg';
+  if (!isPartner) {
+    document.getElementById('input-sq').value = getSQ();
+    document.getElementById('input-bp').value = getBP();
+    document.getElementById('input-dl').value = getDL();
+    document.getElementById('setting-sq-target').textContent = (getSQ() * 1.0625).toFixed(2) + ' kg';
+    document.getElementById('setting-bp-target').textContent = (getBP() * 1.0625).toFixed(2) + ' kg';
+    document.getElementById('setting-dl-target').textContent = (getDL() * 1.0625).toFixed(2) + ' kg';
+  }
 
-  // Program history
+  // Program history (main only)
   const histSection = document.getElementById('setting-history-section');
-  if (state.programHistory && state.programHistory.length > 0) {
-    let html = `<div class="settings-label" style="margin-top:20px;">Tidligere programmer</div>`;
-    html += `<div class="settings-card">`;
+  if (!isPartner && state.programHistory && state.programHistory.length > 0) {
+    let html = `<div class="settings-label" style="margin-top:20px;">Tidligere programmer</div><div class="settings-card">`;
     state.programHistory.forEach((p, i) => {
       const sqPct = ((p.newSq - p.sq) / p.sq * 100).toFixed(1);
       const bpPct = ((p.newBp - p.bp) / p.bp * 100).toFixed(1);
@@ -1308,25 +1764,28 @@ function renderSettings() {
 }
 
 function adjustWeek(d) {
+  const as = aState();
   const newWeek = Math.max(1, Math.min(12, getWeek() + d));
-  // Keep cycleDay position, just shift week
-  state.totalDays = (newWeek - 1) * 7 + (state.totalDays % 7);
-  saveState();
-  renderSettings();
+  as.totalDays = (newWeek - 1) * 7 + (as.totalDays % 7);
+  saveState(); renderSettings();
 }
 
 function adjustDay(d) {
-  // Shift by one absolute day
-  const shifted = state.totalDays + d;
-  state.totalDays = Math.max(0, Math.min(12 * 7 - 1, shifted));
-  saveState();
-  renderSettings();
+  const as = aState();
+  as.totalDays = Math.max(0, Math.min(12 * 7 - 1, as.totalDays + d));
+  saveState(); renderSettings();
 }
 
 function confirmReset() {
-  showModal('Nulstil al data', 'Dette sletter al din træningshistorik og starter programmet fra uge 1. Er du sikker?', () => {
-    localStorage.removeItem('sbd_state');
-    state = { totalDays: 0, logs: {}, completedDays: [] };
+  const isPartner = state.profile === 'partner';
+  const who = isPartner ? 'Ellen' : 'Oliver';
+  showModal(`Nulstil ${who}`, `Dette sletter al træningshistorik for ${who} og starter fra uge 1. Er du sikker?`, () => {
+    if (isPartner) {
+      partnerState = { totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {} };
+    } else {
+      state.totalDays = 0; state.logs = {}; state.completedDays = [];
+      state.pending1RM = {};
+    }
     saveState();
     closeModal();
     renderSettings();
@@ -1345,6 +1804,146 @@ function showModal(title, body, onConfirm, danger = false) {
 }
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
 document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// ─── AUTOREGULATION ENGINE ───────────────────────────────────────────────────
+
+function saveAutoregAdjustment(exName, pctAdj, currentKg) {
+  const as = aState();
+  if (!as.autoregAdj) as.autoregAdj = {};
+  as.autoregAdj[exName] = { pct: pctAdj, baseKg: currentKg, appliedDay: as.totalDays };
+  saveState();
+}
+
+// Get adjusted kg for an exercise based on stored autoreg, if available
+function getAutoregKg(exName, baseKg) {
+  const as = aState();
+  const adj = as.autoregAdj?.[exName];
+  if (!adj) return null;
+  // Only apply if adjustment is from a previous day (not same day)
+  if (adj.appliedDay >= as.totalDays) return null;
+  const adjusted = r(adj.baseKg * (1 + adj.pct));
+  return adjusted;
+}
+
+// Apply autoreg to remaining undone sets in current session
+function applyAutoregToday(ei, exName, pctAdj, currentKg) {
+  const key = logKey();
+  const as = aState();
+  const sets = as.logs[key]?.exercises[ei]?.sets;
+  if (!sets) return;
+  const newKg = r(currentKg * (1 + pctAdj));
+  sets.forEach((s, si) => {
+    if (!s.done) {
+      s.kg = newKg;
+      const inp = document.getElementById(`kg_${ei}_${si}`);
+      if (inp) inp.value = newKg;
+    }
+  });
+  saveState();
+  if (pctAdj !== 0) {
+    const dir = pctAdj > 0 ? '↑' : '↓';
+    showToast(`Autoregulering ${dir} → ${newKg} kg på resterende sæt`);
+  }
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, duration = 3000) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), duration);
+}
+
+// ─── PR ENGINE ───────────────────────────────────────────────────────────────
+
+function getPRStore() {
+  return aState().pr || (aState().pr = {});
+}
+
+function getExPR(exName) {
+  const store = getPRStore();
+  if (!store[exName]) store[exName] = { e1rm: 0, repPR: {}, volPR: 0, setPR: {} };
+  return store[exName];
+}
+
+// Epley formula: estimated 1RM
+function epley(kg, reps) {
+  if (reps === 1) return kg;
+  return kg * (1 + reps / 30);
+}
+
+// Check a completed set against PRs, return array of new PR types
+function checkPRs(exName, kg, reps, allSets) {
+  const pr = getExPR(exName);
+  const newPRs = [];
+  const kgNum = parseFloat(kg);
+  const repsNum = parseInt(reps);
+  if (!kgNum || !repsNum || kgNum <= 0 || repsNum <= 0) return newPRs;
+
+  // 1RM PR
+  const estimated = epley(kgNum, repsNum);
+  if (estimated > (pr.e1rm || 0)) {
+    pr.e1rm = estimated;
+    newPRs.push('1rm');
+  }
+
+  // Rep PR — most reps at this exact weight
+  const kgKey = kgNum.toString();
+  if (repsNum > (pr.repPR[kgKey] || 0)) {
+    pr.repPR[kgKey] = repsNum;
+    newPRs.push('rep');
+  }
+
+  // Volume PR — total kg×reps across all done sets this session
+  const doneSets = allSets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+  const vol = doneSets.reduce((acc, s) => acc + parseFloat(s.kg) * parseInt(s.reps), 0);
+  if (vol > (pr.volPR || 0)) {
+    pr.volPR = vol;
+    newPRs.push('vol');
+  }
+
+  // Set PR — most sets at this exact weight
+  const setsAtWeight = doneSets.filter(s => parseFloat(s.kg) === kgNum).length;
+  if (setsAtWeight > (pr.setPR[kgKey] || 0)) {
+    pr.setPR[kgKey] = setsAtWeight;
+    newPRs.push('set');
+  }
+
+  saveState();
+  return newPRs;
+}
+
+function prBadgeHtml(types) {
+  const map = {
+    '1rm': ['pr-1rm', '🏆 1RM'],
+    'rep': ['pr-rep', '🔁 REP'],
+    'vol': ['pr-vol', '📦 VOL'],
+    'set': ['pr-set', '🔢 SÆT'],
+  };
+  return types.map(t => `<span class="pr-badge ${map[t][0]}">${map[t][1]}</span>`).join('');
+}
+
+// Show PR badges on a set row after completion
+function showPRBadges(ei, si, prTypes) {
+  if (!prTypes.length) return;
+  const row = document.getElementById(`setrow_${ei}_${si}`);
+  if (!row) return;
+  // Add flash
+  row.classList.add('pr-flash');
+  setTimeout(() => row.classList.remove('pr-flash'), 600);
+  // Inject badges next to set number
+  const numEl = row.querySelector('.set-num');
+  if (numEl) {
+    // Remove old badges
+    row.querySelectorAll('.pr-badge').forEach(b => b.remove());
+    numEl.insertAdjacentHTML('afterend', prBadgeHtml(prTypes));
+  }
+  // Vibrate pattern for PR
+  if (navigator.vibrate) navigator.vibrate([50, 50, 50, 50, 200]);
+}
 
 // ─── REST TIMER ──────────────────────────────────────────────────────────────
 let timerInterval = null;
@@ -1480,22 +2079,21 @@ let currentChartLift = 'sq';
 let chartInstance = null;
 
 function getChartData(liftKey) {
-  // Map liftKey to dayId
   const dayMap = { sq: 'low1', bp: 'cst1', dl: 'bb1' };
   const dayId = dayMap[liftKey];
   const color = { sq: '#4a90d9', bp: '#d4a843', dl: '#e05c4a' }[liftKey];
+  const as = aState();
 
-  const points = state.completedDays
+  const points = as.completedDays
     .filter(d => CYCLE[d % 8].id === dayId)
     .sort((a, b) => a - b)
     .map(d => {
-      const log = state.logs[`day${d}`];
+      const log = as.logs[`day${d}`];
       if (!log?.exercises[0]) return null;
       const sets = log.exercises[0].sets.filter(s => s.done && parseFloat(s.kg) > 0);
       if (!sets.length) return null;
       const maxKg = Math.max(...sets.map(s => parseFloat(s.kg)));
-      const week = Math.floor(d / 7) + 1;
-      return { x: `Uge ${week}`, y: maxKg };
+      return { x: `Uge ${Math.floor(d / 7) + 1}`, y: maxKg };
     }).filter(Boolean);
 
   return { points, color };
