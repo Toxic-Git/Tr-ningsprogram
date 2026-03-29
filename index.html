@@ -127,6 +127,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 .badge-bd-sq { background:rgba(74,144,217,0.08); color:var(--sq); border:1px solid rgba(74,144,217,0.3); }
 .badge-bd-bp { background:rgba(212,168,67,0.08); color:var(--bp); border:1px solid rgba(212,168,67,0.3); }
 .badge-bd-dl { background:rgba(224,92,74,0.08); color:var(--dl); border:1px solid rgba(224,92,74,0.3); }
+.badge-power { background:rgba(74,144,217,0.15); color:#7ec8ff; border:1px solid rgba(74,144,217,0.4); }
 
 /* set rows */
 .set-row {
@@ -485,7 +486,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
   <!-- Chart -->
   <div style="padding-top:16px;">
     <div class="chart-wrap">
-      <div class="chart-title">Arbejdsvægt over tid</div>
+      <div class="chart-title">Estimeret 1RM over tid</div>
       <div class="chart-tabs">
         <button class="chart-tab active-sq" onclick="setChartLift('sq',this)" id="chart-tab-sq">Squat</button>
         <button class="chart-tab" onclick="setChartLift('bp',this)" id="chart-tab-bp">Bench</button>
@@ -496,6 +497,22 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
         <div class="chart-empty" id="chart-empty" style="display:none;">Ingen data endnu — log dine første sæt for at se grafen.</div>
       </div>
     </div>
+    <!-- Accessory chart -->
+    <div class="chart-wrap" style="margin-top:0;">
+      <div class="chart-title">Accessory progression</div>
+      <div class="chart-tabs" id="acc-chart-tabs" style="flex-wrap:wrap;"></div>
+      <div class="chart-canvas-wrap">
+        <canvas id="acc-chart"></canvas>
+        <div class="chart-empty" id="acc-chart-empty" style="display:none;">Log accessories for at se progression.</div>
+      </div>
+    </div>
+    <!-- Volume dashboard -->
+    <div class="chart-wrap" id="volume-dashboard" style="margin-top:0;">
+      <div class="chart-title">Ugentlig volumen — sæt per muskelgruppe</div>
+      <div id="volume-bars"></div>
+    </div>
+    <!-- Weekly summary -->
+    <div id="weekly-summary-wrap"></div>
   </div>
   <div id="history-content"></div>
 </div>
@@ -690,8 +707,23 @@ function getBlock(week) {
   if (week <= 8) return 2;
   return 3;
 }
-function isDeload(week) { return week === 4 || week === 8; }
+function isDeload(week) {
+  if (week === 4 || week === 8) return true;
+  const as = aState();
+  return !!(as.deloadWeeks && as.deloadWeeks.includes(week));
+}
 function isTest(week) { return week === 12; }
+
+function triggerAutoDeload() {
+  const as = aState();
+  const week = getWeek();
+  if (!as.deloadWeeks) as.deloadWeeks = [];
+  if (!as.deloadWeeks.includes(week)) as.deloadWeeks.push(week);
+  as.autoDeloadTriggered = as.totalDays;
+  saveState();
+  showToast('Deload aktiveret for denne uge 💤');
+  renderToday();
+}
 
 function blockLabel(week) {
   if (isTest(week)) return '1RM TEST';
@@ -731,44 +763,81 @@ function calcWarmups(workingKg, isBarbell = true) {
   return sets;
 }
 
-// ── PRIMARY SBD SCHEMES ───────────────────────────────────────────────────
+// ── PRIMARY SBD SCHEMES — FULDT RPE-BASERET ──────────────────────────────────
+// Bruger RIR-formel + trend-analyse + restitutionsscore
+// Procenter bruges KUN som fallback første gang uden historik
+
+const SBD_RPE_TARGETS = {
+  // [targetRPE, targetRepsMin, targetRepsMax, sets]
+  squat: {
+    1: { 1:[5,5,7,0.70], 2:[5,5,7,0.75], 3:[5,5,7,0.77] }, // blok 1, uge 1-3
+    2: { 5:[4,3,5,0.80], 6:[4,3,5,0.82], 7:[4,3,5,0.84] }, // blok 2
+    3: { 9:[4,2,4,0.865],10:[3,1,3,0.91],11:[3,1,2,0.955],12:[1,1,1,1.065] },
+  },
+};
+
+// RPE targets per blok
+const RPE_SCHEMES = {
+  // blok: { sets, repsMin, repsMax, targetRPE }
+  squat:    { 1:[5,5,7,6.5], 2:[4,3,5,8.0], 3:[3,1,3,9.0] },
+  bench:    { 1:[5,5,7,6.5], 2:[5,3,5,8.0], 3:[4,1,3,9.0] },
+  deadlift: { 1:[4,4,6,6.5], 2:[4,2,4,8.0], 3:[3,1,3,9.0] },
+  ohp:      { 1:[4,6,8,6.5], 2:[4,4,6,7.5], 3:[3,3,5,8.5] },
+  frontsq:  { 1:[4,6,8,6.5], 2:[4,4,6,7.5], 3:[3,3,5,8.5] },
+  pullup:   { 1:[4,6,8,6.5], 2:[4,4,6,7.5], 3:[3,3,5,8.5] },
+};
+
 function getSBDScheme(lift, week) {
   const b = getBlock(week);
   const dl = isDeload(week);
   const test = isTest(week);
   const oneRM = lift === 'squat' ? getSQ() : lift === 'bench' ? getBP() : getDL();
 
-  // [sets, reps_target, pct, reps_min, reps_max]
-  const schemes = {
-    squat: {
-      1: dl ? [3,4,0.75,3,5]  : [[5,6,0.70,5,7],[5,6,0.75,5,7],[5,6,0.77,5,7]][Math.min(week-1,2)%3],
-      2: dl ? [2,3,0.80,2,4]  : [[4,4,0.80,3,5],[4,4,0.82,3,5],[4,4,0.84,3,5]][(week-5)%3],
-      3: test ? [1,1,1.065,1,1] : dl ? null : [[4,3,0.865,2,4],[3,2,0.91,1,3],[3,1,0.955,1,2],[1,1,1.065,1,1]][Math.min(week-9,3)],
-    },
-    bench: {
-      1: dl ? [3,4,0.735,3,5] : [[5,6,0.70,5,7],[5,6,0.735,5,7],[5,6,0.765,5,7]][Math.min(week-1,2)%3],
-      2: dl ? [2,3,0.795,2,4] : [[5,4,0.795,3,5],[5,4,0.825,3,5],[5,4,0.85,3,5]][(week-5)%3],
-      3: test ? [1,1,1.065,1,1] : dl ? null : [[4,3,0.88,2,4],[4,2,0.91,1,3],[3,1,0.94,1,2],[1,1,1.065,1,1]][Math.min(week-9,3)],
-    },
-    deadlift: {
-      1: dl ? [2,3,0.735,2,4] : [[4,5,0.70,4,6],[4,5,0.735,4,6],[4,5,0.765,4,6]][Math.min(week-1,2)%3],
-      2: dl ? [2,2,0.795,1,3] : [[4,3,0.795,2,4],[4,3,0.825,2,4],[4,3,0.85,2,4]][(week-5)%3],
-      3: test ? [1,1,1.065,1,1] : dl ? null : [[3,2,0.88,1,3],[3,2,0.91,1,2],[2,1,0.94,1,1],[1,1,1.065,1,1]][Math.min(week-9,3)],
+  const liftName = lift === 'squat' ? 'Squat'
+    : lift === 'bench' ? 'Bench Press' : 'Deadlift (Conv.)';
+
+  // Deload: 50% volumen, same % som blok start
+  if (dl) {
+    const deloadSchemes = {
+      squat:    [3,4,6,0.75],
+      bench:    [3,4,6,0.735],
+      deadlift: [2,3,5,0.735],
+    };
+    const [sets,rMin,rMax,pct] = deloadSchemes[lift];
+    return { sets, reps:rMin, repsRange:`${rMin}–${rMax}`, kg:r(oneRM*pct), pct:Math.round(pct*100), isDeload:true };
+  }
+
+  // Test uge
+  if (test) {
+    return { sets:1, reps:1, repsRange:'1', kg:r(oneRM*1.065), pct:107 };
+  }
+
+  const scheme = RPE_SCHEMES[lift]?.[b];
+  if (!scheme) return null;
+  const [sets, rMin, rMax, targetRPE] = scheme;
+  const targetReps = Math.round((rMin + rMax) / 2);
+  const repsRange = `${rMin}–${rMax}`;
+
+  // Tjek om vi har trend-baseret kg fra tidligere sessioner
+  const autoKg = getAutoregKg(liftName, 0);
+  let kg;
+
+  if (autoKg && autoKg > 0) {
+    // Brug trend-baseret kg, modificer med restitutionsscore
+    const restMod = getRestScoreModifier() + getSleepModifier();
+    kg = r(autoKg * (1 + restMod));
+    if (restMod !== 0) {
+      const dir = restMod > 0 ? '↑' : '↓';
+      // Toast vises i renderToday i stedet
     }
-  };
+  } else {
+    // Fallback: beregn fra 1RM og target RPE via RIR-formel
+    const RIR = 10 - targetRPE;
+    const restMod = getRestScoreModifier() + getSleepModifier();
+    kg = r(oneRM / (1 + (RIR + targetReps - 1) / 30) * (1 + restMod));
+  }
 
-  const s = schemes[lift][b];
-  if (!s) return null;
-  const [sets, reps, pct, rMin, rMax] = s;
-  const repsRange = rMin === rMax ? `${rMin}` : `${rMin}–${rMax}`;
-  let kg = r(oneRM * pct);
-
-  // Apply pending autoreg adjustment if available
-  const liftName = lift === 'squat' ? 'Squat' : lift === 'bench' ? 'Bench Press' : 'Deadlift (Conv.)';
-  const autoKg = getAutoregKg(liftName, kg);
-  if (autoKg) kg = autoKg;
-
-  return { sets, reps, repsRange, kg, pct: Math.round(pct*100) };
+  return { sets, reps: targetReps, repsRange, kg, pct: Math.round(kg/oneRM*100), targetRPE };
 }
 
 // ── FIXED ACCESSORY TEMPLATES ────────────────────────────────────────────────
@@ -786,12 +855,13 @@ const ACC_TEMPLATES = {
     { name:'Lateral Raise (Machine)',        badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:135   },
     { name:'Overhead Triceps Ext. (Cable)',  badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:29.65 },
   ],
-  // Lower primær (dag 2) — Squat fokus, minimal fatigue
+  // Lower primær (dag 2) — Box Jump først, derefter Squat-støtte
   low1: [
-    { name:'Seated Leg Curl (Machine)',      badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:87.5  },
-    { name:'Leg Extension (Machine)',        badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:90    },
-    { name:'Single Leg Calf Raise (BB)',     badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:130   },
-    { name:'Ab-arbejde',                     badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:0,    note:'Cable crunch, hanging leg raise eller plank — vælg én.' },
+    { name:'Romanian Deadlift',          badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:80   },
+    { name:'Seated Leg Curl (Machine)',  badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:87.5 },
+    { name:'Leg Extension (Machine)',    badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:90   },
+    { name:'Calf Raise (Machine)',       badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:130, note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
+    { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
   ],
   // B&B primær (dag 4) — Deadlift fokus, max 4 øvelser
   bb1: [
@@ -805,16 +875,16 @@ const ACC_TEMPLATES = {
     { name:'Incline DB Press (variation)',   badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:50    },
     { name:'Rear Delt Reverse Fly (Machine)',badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:120   },
     { name:'Chest Fly (Machine)',            badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:57.5  },
-    { name:'Preacher Curl (DB)',             badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:22.9  },
     { name:'Triceps Extension (Cable)',      badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:25    },
   ],
   // Lower sekundær (dag 7) — tung accessory compound-dag
   low2: [
-    { name:'Hack Squat (Machine)',           badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:97.5  },
-    { name:'Hip Thrust (Barbell)',           badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:85    },
-    { name:'Hip Adduction (Machine)',        badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:70    },
-    { name:'Seated Leg Curl (Machine)',      badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:82.5  },
-    { name:'Single Leg Calf Raise (BB)',     badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:130   },
+    { name:'Hack Squat (Machine)',       badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:97.5 },
+    { name:'Hip Thrust (Barbell)',       badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:85   },
+    { name:'Hip Adduction (Machine)',    badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:70   },
+    { name:'Seated Leg Curl (Machine)', badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:82.5 },
+    { name:'Calf Raise (Machine)',       badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:130, note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
+    { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
   ],
   // B&B sekundær (dag 8) — Pull-up fokus + Jefferson Curl her
   bb2: [
@@ -881,7 +951,7 @@ function getPrimaryLift(dayId, week) {
     case 'bb1':  return { name: test ? 'Deadlift — 1RM Forsøg' : 'Deadlift (Conv.)', badge:'dl', type:'primary', scheme: getSBDScheme('deadlift', week), warmup: true, note: test ? 'Conventional. Fuldt fokus. 10 min. pause.' : null };
     case 'cst2': return { name:'OHP', badge:'bp', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 50, pct: null }, warmup: true };
     case 'low2': return { name:'Front Squat / SSB', badge:'sq', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 77.5, pct: null }, warmup: true };
-    case 'bb2':  return { name:'Weighted Pull-up', badge:'dl', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 10, pct: null }, warmup: false, note:'Tilføj vægt via bælte. Kør bodyweight hvis 8 reps er svært.' };
+    case 'bb2':  return { name:'Weighted Pull-up', badge:'dl', type:'secondary', scheme:{ sets: 4, reps: 6, repsRange:'4–6', kg: 10, pct: null }, warmup: false, note:'Tilføj vægt via bælte. Kør bodyweight hvis 6 reps er svært.' };
     default: return null;
   }
 }
@@ -960,23 +1030,73 @@ function getExercises(dayId, week) {
 
   if (isPartner) {
     const template = PARTNER_TEMPLATES[dayId] || [];
-    return template.map(a => ({
-      name: a.name, badge: 'acc', type: 'acc',
-      scheme: { sets: a.sets, reps: a.reps, repsRange: a.repsRange, kg: a.kg },
-      note: a.note || null, warmup: false,
-    }));
+    const b = getBlock(week);
+    const dl = isDeload(week);
+    return template.map(a => {
+      const isCompound = a.reps <= 6;
+      let sets = a.sets, reps = a.reps, repsRange = a.repsRange;
+      if (isCompound) {
+        if (b === 1)      { sets=3; reps=6; repsRange='4–6'; }
+        else if (b === 2) { sets=3; reps=5; repsRange='4–5'; }
+        else              { sets=3; reps=4; repsRange='3–5'; }
+      } else {
+        if (b === 1)      { sets=3; reps=12; repsRange='10–12'; }
+        else if (b === 2) { sets=3; reps=10; repsRange='8–10'; }
+        else              { sets=3; reps=8;  repsRange='6–8';  }
+      }
+      if (dl) sets = Math.max(2, sets - 1);
+      return {
+        name: a.name, badge: 'acc', type: 'acc',
+        scheme: { sets, reps, repsRange, kg: a.kg },
+        note: a.note || null, warmup: false,
+      };
+    });
   }
 
   const primary = getPrimaryLift(dayId, week);
   const accTemplate = ACC_TEMPLATES[dayId] || [];
 
-  const accExercises = accTemplate.map(a => ({
-    name: a.name, badge: a.badge || 'acc', type: 'acc',
-    scheme: { sets: a.sets, reps: a.reps, repsRange: a.repsRange || '4–6', kg: a.kg },
-    note: a.note || null, warmup: false,
-  }));
+  const accExercises = accTemplate.map(a => {
+    // Accessory periodisering: rep ranges skalerer per blok
+    // Blok 1: høj volumen/reps, Blok 2: moderat, Blok 3: lav/styrke
+    let sets = a.sets, reps = a.reps, repsRange = a.repsRange;
+    if (!isPartner) {
+      const b = getBlock(week);
+      const dl = isDeload(week);
+      const isCompound = a.reps <= 6; // compound acc (4-6 range)
+      if (isCompound) {
+        if (b === 1)      { sets=3; reps=6; repsRange='4–6'; }
+        else if (b === 2) { sets=3; reps=5; repsRange='4–5'; }
+        else              { sets=3; reps=4; repsRange='3–5'; }
+      } else {
+        // isolation acc (8-12 range)
+        if (b === 1)      { sets=3; reps=12; repsRange='10–12'; }
+        else if (b === 2) { sets=3; reps=10; repsRange='8–10'; }
+        else              { sets=3; reps=8;  repsRange='6–8';  }
+      }
+      if (dl) { sets = Math.max(2, sets-1); }
+    }
+    return {
+      name: a.name, badge: a.badge || 'acc', type: 'acc',
+      scheme: { sets, reps, repsRange, kg: a.kg },
+      note: a.note || null, warmup: false,
+    };
+  });
 
   if (!primary) return accExercises;
+
+  // Power exercise on Lower days — always first after primary, never on deload/test
+  const powerEx = [];
+  if ((dayId === 'low1' || dayId === 'low2') && !isDeload(week) && !isTest(week)) {
+    powerEx.push({
+      name: 'Box Jump',
+      badge: 'sq',
+      type: 'power',
+      scheme: { sets: 3, reps: 3, repsRange: '3–5', kg: 0 },
+      note: 'Eksplosivt og maksimalt. Fuld hvile mellem reps (15–20 sek). Stop ved tegn på træthed — kvalitet over kvantitet.',
+      warmup: false,
+    });
+  }
 
   const bdScheme = primary.scheme ? getBackdownScheme(primary.scheme.kg, week) : null;
   const backdown = bdScheme ? [{
@@ -985,7 +1105,7 @@ function getExercises(dayId, week) {
     scheme: bdScheme, note: null, warmup: false,
   }] : [];
 
-  return [primary, ...backdown, ...accExercises];
+  return [primary, ...backdown, ...powerEx, ...accExercises];
 }
 
 // ─── STATE ──────────────────────────────────────────────────────────────────
@@ -995,7 +1115,7 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   oneRM: { sq: 117.02, bp: 89.89, dl: 178.19 },
   programHistory: [], exerciseNotes: {}, profile: 'main',
   pr: {},        // { exName: { e1rm, repPR: {kg: reps}, volPR, setPR: {kg: sets} } }
-  autoregAdj: {}, // { exName: pctAdj } — pending adjustment for next session
+  autoregAdj: {}, restScore: {},
 };
 
 if (!state.timerPrimary)   state.timerPrimary   = 240;
@@ -1007,13 +1127,17 @@ if (!state.profile)        state.profile        = 'main';
 
 // Partner has own separate storage
 let partnerState = JSON.parse(localStorage.getItem('sbd_partner') || 'null') || {
-  totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {}, pr: {}, autoregAdj: {},
+  totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {}, pr: {}, autoregAdj: {}, restScore: {},
 };
 
 if (!state.pr) state.pr = {};
 if (!partnerState.pr) partnerState.pr = {};
 if (!state.autoregAdj) state.autoregAdj = {};
 if (!partnerState.autoregAdj) partnerState.autoregAdj = {};
+if (!state.restScore) state.restScore = {};
+if (!partnerState.restScore) partnerState.restScore = {};
+if (!state.sleepLog) state.sleepLog = {};
+if (!partnerState.sleepLog) partnerState.sleepLog = {};
 
 // Migrate old state format if needed
 if (state.week !== undefined && state.totalDays === undefined) {
@@ -1030,6 +1154,34 @@ if (state.week !== undefined && state.totalDays === undefined) {
   });
   state.logs = newLogs;
 }
+
+// Migrate renamed exercises in logs so autoreg/PR history stays intact
+const EXERCISE_RENAMES = {
+  'Barbell Row': 'Smith Machine Row',
+  'Lat Pulldown': 'Lat Pulldown Wide Grip',
+  'Cable Row': 'Seated Cable Row (V-Grip)',
+  'Weighted Pull-up': 'Chest Supported Row',
+  'Face Pull': 'Rear Delt Reverse Fly (Machine)',
+  'Hammer Curl': 'Preacher Curl (DB)',
+  'Leg Press': 'Hack Squat (Machine)',
+  'Leg Curl': 'Seated Leg Curl (Machine)',
+  'Calf Raise': 'Single Leg Calf Raise (BB)',
+  'Romanian Deadlift': 'Romanian Deadlift', // already correct
+};
+
+function migrateExerciseNames(logObj) {
+  if (!logObj) return;
+  Object.values(logObj).forEach(log => {
+    if (!log.exercises) return;
+    log.exercises.forEach(ex => {
+      if (EXERCISE_RENAMES[ex.name] && EXERCISE_RENAMES[ex.name] !== ex.name) {
+        ex.name = EXERCISE_RENAMES[ex.name];
+      }
+    });
+  });
+}
+migrateExerciseNames(state.logs);
+migrateExerciseNames(partnerState.logs);
 
 function saveState() {
   localStorage.setItem('sbd_state', JSON.stringify(state));
@@ -1101,6 +1253,100 @@ function renderToday() {
     </div>`;
   }
 
+  // Weekly summary — show on first workout day of each new week
+  const isFirstDayOfWeek = aState().totalDays % 7 === 0 && day.type === 'workout';
+  if (isFirstDayOfWeek && getWeek() > 1) {
+    // Render inline mini-summary
+    const prevWeek = getWeek() - 1;
+    const prevStart = (prevWeek-1)*7, prevEnd = prevWeek*7;
+    const as = aState();
+    const prevDays = as.completedDays.filter(d => d >= prevStart && d < prevEnd);
+    if (prevDays.length > 0) {
+      let rSum=0, rCnt=0, sSum=0, sCnt=0, wk=0;
+      prevDays.forEach(d => {
+        if (CYCLE[d%8].type === 'workout') wk++;
+        const log = as.logs[`day${d}`];
+        if (!log) return;
+        log.exercises.forEach(ex => ex.sets.forEach(s => {
+          if (s.done && s.rpe) { rSum += parseFloat(s.rpe); rCnt++; }
+        }));
+        if (as.sleepLog?.[d]) { sSum += as.sleepLog[d]; sCnt++; }
+      });
+      const avgRPE = rCnt ? (rSum/rCnt).toFixed(1) : '—';
+      const avgSlp = sCnt ? (sSum/sCnt).toFixed(1) : '—';
+      html += `<div class="suggestion-bar" style="background:rgba(212,168,67,0.06);border-color:rgba(212,168,67,0.2);flex-direction:column;gap:6px;align-items:flex-start;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--gold);">UGE ${prevWeek} OPSUMMERING</div>
+        <div style="display:flex;gap:20px;font-size:13px;">
+          <span>🏋️ <strong>${wk}</strong> træninger</span>
+          <span>⚡ RPE <strong>${avgRPE}</strong></span>
+          <span>💤 <strong>${avgSlp}t</strong> søvn</span>
+        </div>
+      </div>`;
+    }
+  }
+
+  // Fatigue deload warning
+  if (shouldAutoDeload() && !isDeload(week) && !isTest(week)) {
+    html += `<div class="suggestion-bar" style="border-color:rgba(224,92,74,0.3);background:rgba(224,92,74,0.06);flex-direction:column;align-items:flex-start;gap:8px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="suggestion-icon">😮‍💨</div>
+        <div class="suggestion-text" style="color:var(--dl);">
+          <strong>Høj akkumuleret træthed</strong> — gns. RPE ${getWeeklyFatigue()?.toFixed(1)} over 2 uger. Din krop siger deload.
+        </div>
+      </div>
+      <button onclick="triggerAutoDeload()" style="margin-left:32px;padding:7px 14px;border-radius:6px;border:1px solid var(--dl);background:none;color:var(--dl);font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">
+        Skift til deload-uge →
+      </button>
+    </div>`;
+  }
+
+  const restScore = getRestScore();
+  const sleepHours = getSleepHours();
+  if ((!restScore || !sleepHours) && day.type === 'workout') {
+    html += `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:10px;">`;
+    if (!restScore) {
+      html += `<div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Restitutionsniveau i dag?</div>
+        <div style="display:flex;gap:6px;">
+          ${[1,2,3,4,5].map(n => `
+            <button onclick="saveRestScore(${n}); document.getElementById('rest-prompt').style.display='none';"
+              style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+                     background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;
+                     font-family:'Barlow Condensed',sans-serif;cursor:pointer;">${n}</button>
+          `).join('')}
+        </div>
+      </div>`;
+    }
+    if (!sleepHours) {
+      html += `<div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Søvn i nat (timer)?</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" inputmode="decimal" step="0.25" min="1" max="12"
+            placeholder="7.5"
+            onchange="saveSleepHours(parseFloat(this.value))"
+            style="width:64px;background:var(--surface2);border:1px solid var(--border);
+                   border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
+                   font-size:16px;font-weight:700;padding:7px 10px;text-align:center;
+                   -webkit-appearance:none;appearance:none;">
+          <span style="font-size:12px;color:var(--muted);">t</span>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  } else if ((restScore || sleepHours) && day.type === 'workout') {
+    const restMod = getRestScoreModifier() + getSleepModifier();
+    const sleepMod = getSleepModifier();
+    const totalMod = restMod + sleepMod;
+    if (totalMod !== 0) {
+      const dir = totalMod > 0 ? '↑' : '↓';
+      const emoji = totalMod > 0 ? '⚡' : '😴';
+      html += `<div class="suggestion-bar">
+        <div class="suggestion-icon">${emoji}</div>
+        <div class="suggestion-text"><strong>Restitution ${restScore || '—'}/5 · Søvn ${sleepHours || '—'}t</strong> — vægte justeret ${dir} ${Math.abs(totalMod*100).toFixed(1)}% i dag</div>
+      </div>`;
+    }
+  }
+
   // Day header
   html += `<div class="today-header">
     <div>
@@ -1148,10 +1394,29 @@ function renderToday() {
     const isPrimary = ex.type === 'primary' || ex.type === 'secondary';
     const isBackdown = ex.type === 'backdown';
     const showWarmup = ex.warmup && isPrimary;
-    const badgeClass = isBackdown ? `badge-bd-${ex.badge}` : `badge-${ex.badge}`;
-    const badgeLabel = isBackdown ? 'BD' : ex.badge === 'acc' ? 'ACC' : ex.type === 'secondary' ? 'SEK' : ex.badge.toUpperCase();
+    const badgeClass = isBackdown ? `badge-bd-${ex.badge}` : ex.type === 'power' ? 'badge-power' : `badge-${ex.badge}`;
+    const badgeLabel = isBackdown ? 'BD' : ex.type === 'power' ? '⚡ POWER' : ex.badge === 'acc' ? 'ACC' : ex.type === 'secondary' ? 'SEK' : ex.badge.toUpperCase();
     const repsDisplay = ex.scheme.repsRange || ex.scheme.reps;
-    const kgLabel = ex.scheme.kg > 0 ? ` · ${ex.scheme.kg} kg${ex.scheme.pct ? ' ('+ex.scheme.pct+'%)' : ''}` : ex.scheme.kg === 0 ? ' · Kropsvægt' : '';
+
+    // Intra-session fatigue: hvis primært løft var RPE 8.5+ skaleres accessories ned
+    let intraFatigueMod = 1.0;
+    if (ex.type === 'acc') {
+      const primaryLog = log.exercises[0];
+      if (primaryLog) {
+        const donePrimary = primaryLog.sets.filter(s => s.done && s.rpe);
+        if (donePrimary.length > 0) {
+          const maxRPE = Math.max(...donePrimary.map(s => parseFloat(s.rpe)));
+          if (maxRPE >= 9.5)      intraFatigueMod = 0.90;
+          else if (maxRPE >= 9.0) intraFatigueMod = 0.925;
+          else if (maxRPE >= 8.5) intraFatigueMod = 0.95;
+        }
+      }
+    }
+    const displayKg = intraFatigueMod !== 1.0 && ex.scheme.kg > 0
+      ? r(ex.scheme.kg * intraFatigueMod)
+      : ex.scheme.kg;
+
+    const kgLabel = displayKg > 0 ? ` · ${displayKg} kg${ex.scheme.pct ? ' ('+ex.scheme.pct+'%)' : ''}${intraFatigueMod < 1.0 ? ' <span style="font-size:10px;color:var(--dl);">↓ fatigue</span>' : ''}` : displayKg === 0 ? ' · Kropsvægt' : '';
 
     // RPE-based weight hint — RIR formula for all lifts
     // Primary SBD: uses actual 1RM. Accessories: estimates e1RM from last logged set via Epley
@@ -1237,6 +1502,7 @@ function renderToday() {
       </div>`;
     }
 
+    // Intra-session fatigue er allerede beregnet ovenfor (intraFatigueMod + displayKg)
     const showRPEInput = isPrimary || isBackdown;
     const totalSets = logEx.sets.length;
 
@@ -1252,7 +1518,7 @@ function renderToday() {
       const done = s.done;
       const isLastSet = si === totalSets - 1;
       const showRPE = showRPEInput && isLastSet;
-      const kgPlaceholder = ex.scheme.kg > 0 ? ex.scheme.kg : ex.scheme.kg === 0 ? 'BW' : '—';
+      const kgPlaceholder = displayKg > 0 ? displayKg : displayKg === 0 ? 'BW' : '—';
       const gridCols = showRPEInput ? '36px 1fr 1fr 52px 44px' : '36px 1fr 1fr 44px';
       html += `<div class="${showRPEInput ? 'set-row-5col' : 'set-row'} ${done ? 'completed' : ''}" id="setrow_${ei}_${si}" style="grid-template-columns:${gridCols};">
         <div class="set-num">${si + 1}</div>
@@ -1273,32 +1539,96 @@ function renderToday() {
 
     // Show autoreg suggestion after last set is completed on primary lifts
     const lastSet = logEx.sets[totalSets - 1];
-    if (showRPEInput && lastSet?.done && lastSet?.rpe) {
+    if (showRPEInput && lastSet?.done) {
+      const repParts  = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
+      const repFloor  = parseInt(repParts[0]);
+      const repCeil   = repParts.length > 1 ? parseInt(repParts[1]) : repFloor;
+      const repMid    = Math.round((repFloor + repCeil) / 2);
+      const actualReps = parseInt(lastSet.reps) || 0;
+      const actualRPE  = lastSet.rpe ? parseFloat(lastSet.rpe) : null;
+      const currentKg  = parseFloat(lastSet.kg) || ex.scheme.kg || 0;
+
       const expectedRPE = getExpectedRPE(ex.type, week);
-      const expMid = parseFloat(expectedRPE.val.split('–')[1] || expectedRPE.val);
-      const actualRPE = parseFloat(lastSet.rpe);
-      const diff = actualRPE - expMid;
-      const currentKg = parseFloat(lastSet.kg) || ex.scheme.kg || 0;
-      let pctAdj = 0, nextKg = currentKg, cls = 'autoreg-hold';
-      if (diff <= -2)      { pctAdj =  0.05;  nextKg = r(currentKg*1.05);  cls='autoreg-up';   }
-      else if (diff <= -1) { pctAdj =  0.025; nextKg = r(currentKg*1.025); cls='autoreg-up';   }
-      else if (diff <= 0.5){ pctAdj =  0.0125;nextKg = r(currentKg*1.0125);cls='autoreg-hold'; }
-      else if (diff <= 1.5){ pctAdj = -0.025; nextKg = r(currentKg*0.975); cls='autoreg-down'; }
-      else                  { pctAdj = -0.05;  nextKg = r(currentKg*0.95);  cls='autoreg-down'; }
+      const rpeParts2   = expectedRPE.val.split('–');
+      const expRPEMid   = rpeParts2.length > 1
+        ? (parseFloat(rpeParts2[0]) + parseFloat(rpeParts2[1])) / 2
+        : parseFloat(rpeParts2[0]);
+      const effectiveRPE = actualRPE !== null ? actualRPE : expRPEMid;
 
-      const actualReps = parseInt(lastSet.reps) || '?';
-      const nextRepsRange = ex.scheme.repsRange || ex.scheme.reps;
-      const icon = cls==='autoreg-up' ? '📈' : cls==='autoreg-down' ? '📉' : '✅';
-      html += `<div class="autoreg-bar autoreg-bar-${ei}">
-        <div class="autoreg-icon">${icon}</div>
-        <div class="autoreg-text ${cls}">
-          RPE ${actualRPE} · ${actualReps} reps — næste gang ca. <strong>${nextKg} kg · ${nextRepsRange} reps</strong>
-        </div>
-      </div>`;
-      saveAutoregAdjustment(ex.name, pctAdj, currentKg);
+      let icon, cls, msg;
+      if (actualReps > 0 && currentKg > 0) {
+        const targetReps = actualReps < repFloor ? repFloor : repMid;
+        const nextKg = calcNextKg(currentKg, actualReps, effectiveRPE, targetReps, expRPEMid, ex.name);
+        const diff   = nextKg - currentKg;
+
+        // Trend info
+        const trend = getTrend(ex.name);
+        const trendNote = Math.abs(trend) > 0.03
+          ? ` <span style="font-size:10px;color:var(--muted);">(${trend > 0 ? 'konsekvent let' : 'konsekvent tungt'})</span>`
+          : '';
+
+        if (actualReps < repFloor) {
+          icon='📉'; cls='autoreg-down';
+          msg=`${actualReps} reps — under range, <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
+        } else if (diff > currentKg * 0.04) {
+          icon='🚀'; cls='autoreg-up';
+          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — langt over, <strong>prøv ${nextKg} kg</strong>${trendNote}`;
+        } else if (diff > 0) {
+          icon='📈'; cls='autoreg-up';
+          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — <strong>prøv ${nextKg} kg</strong> næste gang${trendNote}`;
+        } else if (diff < -currentKg * 0.02) {
+          icon='📉'; cls='autoreg-down';
+          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — for tungt, <strong>back off til ${nextKg} kg</strong>${trendNote}`;
+        } else {
+          icon='✅'; cls='autoreg-hold';
+          msg=`${actualReps} reps${actualRPE ? ' ved RPE '+actualRPE : ''} — spot on, <strong>ca. ${nextKg} kg</strong> igen${trendNote}`;
+        }
+        html += `<div class="autoreg-bar">
+          <div class="autoreg-icon">${icon}</div>
+          <div class="autoreg-text ${cls}">${msg}</div>
+        </div>`;
+      }
+    } // end showRPEInput autoreg block
+
+    // Double progression for accessories — shows when all sets are done
+    if (ex.type === 'acc' && ex.scheme.kg > 0) {
+      const doneSets = logEx.sets.filter(s => s.done && parseInt(s.reps) > 0);
+      if (doneSets.length === totalSets && totalSets > 0) {
+        const repParts = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
+        const repFloor = parseInt(repParts[0]);
+        const repCeil  = repParts.length > 1 ? parseInt(repParts[1]) : repFloor;
+        const currentKg = parseFloat(doneSets[0].kg) || ex.scheme.kg || 0;
+        const allReps = doneSets.map(s => parseInt(s.reps));
+        const minReps = Math.min(...allReps);
+        const maxReps = Math.max(...allReps);
+
+        let icon, cls, msg;
+        if (minReps >= repCeil) {
+          // All sets hit top or above — go up
+          const nextKg = r(currentKg + 2.5);
+          icon = '🏆'; cls = 'autoreg-up';
+          msg = `Alle sæt i top — <strong>gå op til ${nextKg} kg</strong> næste gang, start ved ${repFloor} reps`;
+        } else if (maxReps < repFloor) {
+          // All sets below floor — drop weight
+          const nextKg = r(currentKg - 2.5);
+          icon = '📉'; cls = 'autoreg-down';
+          msg = `Under rep-range på alle sæt — <strong>sæt ned til ${nextKg} kg</strong> og fokuser på teknik`;
+        } else if (minReps >= repFloor && maxReps < repCeil) {
+          // Within range but not at top yet — keep weight
+          icon = '➡️'; cls = 'autoreg-hold';
+          msg = `Godt arbejde — <strong>hold ${currentKg} kg</strong>, arbejd mod ${repCeil} reps på alle sæt`;
+        } else {
+          // Mixed — some sets hit top, some didn't
+          icon = '➡️'; cls = 'autoreg-hold';
+          msg = `Næsten der — <strong>hold ${currentKg} kg</strong>, ram ${repCeil} reps på alle sæt før du går op`;
+        }
+
+        html += `<div class="autoreg-bar">
+          <div class="autoreg-icon">${icon}</div>
+          <div class="autoreg-text ${cls}">${msg}</div>
+        </div>`;
+      }
     }
-
-    // Editable note — persisted per exercise name globally
     const noteKey = `note_${ex.name.replace(/\s+/g,'_')}`;
     const savedNote = aState().exerciseNotes?.[noteKey] || ex.note || '';
     html += `<div style="padding:8px 16px 10px;border-top:1px solid var(--border);">
@@ -1415,27 +1745,45 @@ function toggleSet(ei, si) {
     const duration = isPrimaryOrBD ? state.timerPrimary : state.timerAcc;
     startTimer(duration, ex.name);
 
-    // Autoreg: if this is the last set of a primary/backdown lift and RPE is logged
+    // Autoreg: reps primær, RPE sekundær — trend-baseret
     const totalSets = as.logs[key].exercises[ei].sets.length;
     const isLastSet = si === totalSets - 1;
-    if (isPrimaryOrBD && isLastSet && s.rpe) {
-      const expectedRPE = getExpectedRPE(ex.type, getWeek());
-      const expMid = parseFloat(expectedRPE.val.split('–')[1] || expectedRPE.val);
-      const actualRPE = parseFloat(s.rpe);
-      const diff = actualRPE - expMid;
-      let pctAdj = 0;
-      if (diff <= -2)       pctAdj =  0.05;
-      else if (diff <= -1)  pctAdj =  0.025;
-      else if (diff <= 0.5) pctAdj =  0.0125;
-      else if (diff <= 1.5) pctAdj = -0.025;
-      else                  pctAdj = -0.05;
-      const currentKg = parseFloat(s.kg) || ex.scheme.kg || 0;
-      // Apply to remaining undone sets today
-      applyAutoregToday(ei, ex.name, pctAdj, currentKg);
-      // Save for next session
-      saveAutoregAdjustment(ex.name, pctAdj, currentKg);
-      // Refresh autoreg bar in UI
-      setTimeout(() => renderToday(), 100);
+    if (isPrimaryOrBD && isLastSet) {
+      const currentKg   = parseFloat(s.kg) || ex.scheme.kg || 0;
+      const actualReps  = parseInt(s.reps) || 0;
+      const actualRPE   = s.rpe ? parseFloat(s.rpe) : null;
+
+      const repParts = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
+      const repFloor = parseInt(repParts[0]);
+      const repCeil  = repParts.length > 1 ? parseInt(repParts[1]) : repFloor;
+      const repMid   = Math.round((repFloor + repCeil) / 2);
+
+      const rpeInfo   = getExpectedRPE(ex.type, getWeek());
+      const rpeParts2 = rpeInfo.val.split('–');
+      const expRPEMid = rpeParts2.length > 1
+        ? (parseFloat(rpeParts2[0]) + parseFloat(rpeParts2[1])) / 2
+        : parseFloat(rpeParts2[0]);
+      const effectiveRPE = actualRPE !== null ? actualRPE : expRPEMid;
+
+      let nextKg, pctAdj;
+
+      if (actualReps === 0) {
+        nextKg = currentKg; pctAdj = 0;
+      } else if (actualReps < repFloor) {
+        // Under bund — brug RIR-formel til at finde rigtig vægt
+        nextKg = calcNextKg(currentKg, actualReps, effectiveRPE, repFloor, expRPEMid, ex.name);
+        pctAdj = calcPctAdj(currentKg, nextKg);
+      } else {
+        // I range eller over — beregn næste kg via RIR-formel
+        nextKg = calcNextKg(currentKg, actualReps, effectiveRPE, repMid, expRPEMid, ex.name);
+        pctAdj = calcPctAdj(currentKg, nextKg);
+      }
+
+      if (currentKg > 0 && actualReps > 0) {
+        applyAutoregToday(ei, ex.name, pctAdj, currentKg);
+        saveAutoregAdjustment(ex.name, pctAdj, currentKg);
+        setTimeout(() => renderToday(), 100);
+      }
     }
   }
   const row = document.getElementById(`setrow_${ei}_${si}`);
@@ -1551,7 +1899,6 @@ function showResultScreen() {
 }
 
 function startNewProgram(newSQ, newBP, newDL) {
-  // Archive current program
   state.programHistory.push({
     date: new Date().toLocaleDateString('da-DK'),
     sq: getSQ(), bp: getBP(), dl: getDL(),
@@ -1559,14 +1906,15 @@ function startNewProgram(newSQ, newBP, newDL) {
     program: state.logs,
   });
 
-  // Update 1RMs
   state.oneRM = { sq: newSQ, bp: newBP, dl: newDL };
-
-  // Reset program state but keep history, settings and 1RMs
   state.totalDays = 0;
   state.logs = {};
   state.completedDays = [];
   state.pending1RM = {};
+  state.deloadWeeks = [];
+  state.restScore = {};
+  state.sleepLog = {};
+  state.autoDeloadTriggered = null;
 
   saveState();
   closeModal();
@@ -1626,11 +1974,274 @@ function jumpToWeek(w) {
   });
 }
 
+function renderVolumeDashboard() {
+  const container = document.getElementById('volume-bars');
+  if (!container) return;
+  const vol = getWeeklyVolume();
+  const muscles = Object.keys(VOLUME_TARGETS);
+
+  let html = '';
+  muscles.forEach(muscle => {
+    const sets = vol[muscle] || 0;
+    const { min, max } = VOLUME_TARGETS[muscle];
+    const pct = Math.min(100, Math.round(sets / max * 100));
+    let color, status;
+    if (sets === 0)        { color = 'var(--border)';  status = 'Ingen sæt denne uge'; }
+    else if (sets < min)   { color = 'var(--dl)';      status = `${sets}/${min} minimum`; }
+    else if (sets <= max)  { color = 'var(--green)';   status = `${sets} sæt ✓`; }
+    else                   { color = 'var(--gold)';    status = `${sets} sæt — over max`; }
+
+    html += `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:12px;font-weight:400;">${muscle}</span>
+        <span style="font-size:11px;color:var(--muted);">${status}</span>
+      </div>
+      <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:3px;transition:width .4s ease;"></div>
+      </div>
+    </div>`;
+  });
+
+  if (!html) html = `<div style="font-size:12px;color:var(--muted);padding:8px 0;">Log træninger for at se ugentlig volumen.</div>`;
+  container.innerHTML = html;
+}
+
+// ─── ACCESSORY CHART ─────────────────────────────────────────────────────────
+let currentAccExercise = null;
+
+function renderAccChartTabs() {
+  const tabs = document.getElementById('acc-chart-tabs');
+  if (!tabs) return;
+  const as = aState();
+
+  // Collect all accessory exercise names with at least 2 data points
+  const exNames = {};
+  as.completedDays.forEach(d => {
+    const log = as.logs[`day${d}`];
+    if (!log) return;
+    log.exercises.forEach(ex => {
+      if (!['primary','secondary','backdown','power'].includes(ex.type || 'acc')) return;
+      if (ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown') return;
+      const done = ex.sets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+      if (done.length > 0) exNames[ex.name] = (exNames[ex.name] || 0) + 1;
+    });
+  });
+
+  const qualified = Object.keys(exNames).filter(n => exNames[n] >= 2);
+  if (!qualified.length) {
+    tabs.innerHTML = '';
+    document.getElementById('acc-chart-empty').style.display = 'block';
+    document.getElementById('acc-chart').style.display = 'none';
+    return;
+  }
+
+  if (!currentAccExercise || !qualified.includes(currentAccExercise)) {
+    currentAccExercise = qualified[0];
+  }
+
+  tabs.innerHTML = qualified.map(name => {
+    const short = name.length > 14 ? name.slice(0,13) + '…' : name;
+    const active = name === currentAccExercise;
+    return `<button class="chart-tab ${active ? 'active-sq' : ''}"
+      onclick="currentAccExercise='${name.replace(/'/g,"\\'")}'; renderAccChartTabs(); drawAccChart();"
+      style="font-size:10px;">${short}</button>`;
+  }).join('');
+
+  drawAccChart();
+}
+
+function drawAccChart() {
+  const canvas = document.getElementById('acc-chart');
+  const empty = document.getElementById('acc-chart-empty');
+  if (!canvas || !currentAccExercise) return;
+  const as = aState();
+
+  const points = as.completedDays
+    .sort((a,b) => a-b)
+    .map(d => {
+      const log = as.logs[`day${d}`];
+      if (!log) return null;
+      const ex = log.exercises.find(e => e.name === currentAccExercise);
+      if (!ex) return null;
+      const done = ex.sets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+      if (!done.length) return null;
+      const bestE1rm = Math.max(...done.map(s => epley(parseFloat(s.kg), parseInt(s.reps))));
+      return { x: `Uge ${Math.floor(d/7)+1}`, y: Math.round(bestE1rm * 10) / 10 };
+    }).filter(Boolean);
+
+  if (points.length < 2) {
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  empty.style.display = 'none';
+
+  const wrap = canvas.parentElement;
+  canvas.width = wrap.clientWidth;
+  canvas.height = 120;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const vals = points.map(p => p.y);
+  const minV = Math.min(...vals) * 0.97;
+  const maxV = Math.max(...vals) * 1.03;
+  const pad = { t:8, r:12, b:24, l:42 };
+  const W = canvas.width - pad.l - pad.r;
+  const H = canvas.height - pad.t - pad.b;
+  const color = '#9b7fd4';
+
+  const xS = i => pad.l + (i / (points.length-1)) * W;
+  const yS = v => pad.t + H - ((v - minV) / (maxV - minV)) * H;
+
+  ctx.strokeStyle = '#2e3240'; ctx.lineWidth = 1;
+  [0, 0.5, 1].forEach(t => {
+    const y = pad.t + H * (1-t);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+W, y); ctx.stroke();
+    ctx.fillStyle='#6b7280'; ctx.font='10px Barlow,sans-serif'; ctx.textAlign='right';
+    ctx.fillText(Math.round(minV + t*(maxV-minV)) + ' kg', pad.l-3, y+3);
+  });
+
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+H);
+  grad.addColorStop(0, color+'33'); grad.addColorStop(1, color+'00');
+  ctx.beginPath();
+  ctx.moveTo(xS(0), yS(points[0].y));
+  points.forEach((p,i) => { if(i>0) ctx.lineTo(xS(i), yS(p.y)); });
+  ctx.lineTo(xS(points.length-1), pad.t+H);
+  ctx.lineTo(xS(0), pad.t+H);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+
+  ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin='round';
+  points.forEach((p,i) => i===0 ? ctx.moveTo(xS(i),yS(p.y)) : ctx.lineTo(xS(i),yS(p.y)));
+  ctx.stroke();
+
+  points.forEach((p,i) => {
+    ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
+    ctx.fillStyle=color; ctx.fill();
+    if (points.length <= 8 || i % 2 === 0) {
+      ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+      ctx.fillText(p.x, xS(i), canvas.height-4);
+    }
+  });
+}
+
+// ─── WEEKLY SUMMARY ──────────────────────────────────────────────────────────
+
+function renderWeeklySummary() {
+  const wrap = document.getElementById('weekly-summary-wrap');
+  if (!wrap) return;
+  const as = aState();
+  const currentWeek = getWeek();
+  if (currentWeek <= 1) { wrap.innerHTML = ''; return; }
+
+  const prevWeek = currentWeek - 1;
+  const prevStart = (prevWeek - 1) * 7;
+  const prevEnd   = prevWeek * 7;
+
+  const prevDays = as.completedDays.filter(d => d >= prevStart && d < prevEnd);
+  if (!prevDays.length) { wrap.innerHTML = ''; return; }
+
+  // Workouts completed
+  const workouts = prevDays.filter(d => CYCLE[d%8].type === 'workout').length;
+
+  // Average RPE
+  let rpeSum = 0, rpeCount = 0;
+  prevDays.forEach(d => {
+    const log = as.logs[`day${d}`];
+    if (!log) return;
+    log.exercises.forEach(ex => {
+      ex.sets.forEach(s => {
+        if (s.done && s.rpe) { rpeSum += parseFloat(s.rpe); rpeCount++; }
+      });
+    });
+  });
+  const avgRPE = rpeCount > 0 ? (rpeSum/rpeCount).toFixed(1) : '—';
+
+  // Average sleep
+  let sleepSum = 0, sleepCount = 0;
+  for (let d = prevStart; d < prevEnd; d++) {
+    const h = as.sleepLog?.[d];
+    if (h) { sleepSum += h; sleepCount++; }
+  }
+  const avgSleep = sleepCount > 0 ? (sleepSum/sleepCount).toFixed(1) : '—';
+
+  // SBD progress — compare e1RM from last 2 primary sessions
+  const sbdProgress = [];
+  if (state.profile !== 'partner') {
+    [{ dayId:'low1', name:'Squat' }, { dayId:'cst1', name:'Bench' }, { dayId:'bb1', name:'Deadlift' }].forEach(({ dayId, name }) => {
+      const sessions = as.completedDays
+        .filter(d => CYCLE[d%8].id === dayId && as.logs[`day${d}`])
+        .sort((a,b) => b-a);
+      if (sessions.length >= 2) {
+        const getE1rm = d => {
+          const sets = as.logs[`day${d}`]?.exercises[0]?.sets?.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) || [];
+          return sets.length ? Math.max(...sets.map(s => epley(parseFloat(s.kg), parseInt(s.reps)))) : 0;
+        };
+        const last = getE1rm(sessions[0]);
+        const prev2 = getE1rm(sessions[1]);
+        if (last > 0 && prev2 > 0) {
+          const diff = last - prev2;
+          sbdProgress.push({ name, diff, last });
+        }
+      }
+    });
+  }
+
+  let html = `<div class="chart-wrap" style="margin-top:0;border-left:3px solid var(--gold);">
+    <div class="chart-title">📋 Uge ${prevWeek} — Opsummering</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+      <div style="text-align:center;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--gold);">${workouts}</div>
+        <div style="font-size:11px;color:var(--muted);">træninger</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${parseFloat(avgRPE) >= 8.5 ? 'var(--dl)' : 'var(--green)'};">${avgRPE}</div>
+        <div style="font-size:11px;color:var(--muted);">gns. RPE</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${parseFloat(avgSleep) < 7 ? 'var(--dl)' : 'var(--green)'};">${avgSleep}t</div>
+        <div style="font-size:11px;color:var(--muted);">gns. søvn</div>
+      </div>
+    </div>`;
+
+  if (sbdProgress.length) {
+    html += `<div style="border-top:1px solid var(--border);padding-top:10px;">`;
+    sbdProgress.forEach(({ name, diff, last }) => {
+      const col = diff > 0 ? 'var(--green)' : diff < 0 ? 'var(--dl)' : 'var(--muted)';
+      const icon = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+      html += `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">
+        <span style="color:var(--muted);">${name}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;">
+          ${last.toFixed(1)} kg <span style="color:${col};font-size:11px;">${icon} ${Math.abs(diff).toFixed(1)} kg</span>
+        </span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Simple text verdict
+  const fatigueHigh = parseFloat(avgRPE) >= 8.5;
+  const sleepLow    = parseFloat(avgSleep) < 7;
+  let verdict = '';
+  if (fatigueHigh && sleepLow) verdict = '😮‍💨 Høj træthed og lav søvn — overvej deload eller ekstra hviledag.';
+  else if (fatigueHigh)        verdict = '💪 Hård uge — god indsats. Hold øje med restitution denne uge.';
+  else if (sleepLow)           verdict = '😴 Lav søvn sidste uge — prioriter søvn for bedre adaptation.';
+  else if (workouts >= 5)      verdict = '✅ Stærk uge — god konsistens og kontrolleret belastning.';
+  else                         verdict = '📈 Solid uge. Fortsæt som planlagt.';
+
+  html += `<div style="margin-top:10px;font-size:13px;color:var(--muted);font-style:italic;border-top:1px solid var(--border);padding-top:8px;">${verdict}</div>`;
+  html += `</div>`;
+  wrap.innerHTML = html;
+}
+
 function renderHistory() {
   const as = aState();
   const done = as.completedDays.slice().reverse();
   document.getElementById('history-sub').textContent = `${done.length} træninger gennemført`;
   drawChart();
+  renderVolumeDashboard();
+  renderAccChartTabs();
+  renderWeeklySummary();
 
   // PR summary for main SBD lifts
   const pr = as.pr || {};
@@ -1781,10 +2392,12 @@ function confirmReset() {
   const who = isPartner ? 'Ellen' : 'Oliver';
   showModal(`Nulstil ${who}`, `Dette sletter al træningshistorik for ${who} og starter fra uge 1. Er du sikker?`, () => {
     if (isPartner) {
-      partnerState = { totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {} };
+      partnerState = { totalDays: 0, logs: {}, completedDays: [], exerciseNotes: {}, pr: {}, autoregAdj: {}, restScore: {}, sleepLog: {}, deloadWeeks: [] };
     } else {
       state.totalDays = 0; state.logs = {}; state.completedDays = [];
-      state.pending1RM = {};
+      state.pending1RM = {}; state.deloadWeeks = [];
+      state.restScore = {}; state.sleepLog = {};
+      state.autoDeloadTriggered = null;
     }
     saveState();
     closeModal();
@@ -1805,27 +2418,81 @@ function showModal(title, body, onConfirm, danger = false) {
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
 document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
 
-// ─── AUTOREGULATION ENGINE ───────────────────────────────────────────────────
+// ─── AUTOREGULATION ENGINE (TREND-BASERET) ───────────────────────────────────
+// Gemmer op til 5 sessioner per øvelse og bruger glidende gennemsnit
+
+function getSessionHistory(exName) {
+  const as = aState();
+  if (!as.autoregAdj) as.autoregAdj = {};
+  if (!as.autoregAdj[exName]) as.autoregAdj[exName] = { sessions: [] };
+  // Migrate old format
+  if (as.autoregAdj[exName].pct !== undefined) {
+    const old = as.autoregAdj[exName];
+    as.autoregAdj[exName] = { sessions: [{ kg: old.baseKg, pct: old.pct, day: old.appliedDay }] };
+  }
+  return as.autoregAdj[exName].sessions;
+}
 
 function saveAutoregAdjustment(exName, pctAdj, currentKg) {
   const as = aState();
   if (!as.autoregAdj) as.autoregAdj = {};
-  as.autoregAdj[exName] = { pct: pctAdj, baseKg: currentKg, appliedDay: as.totalDays };
+  const hist = getSessionHistory(exName);
+  hist.push({ kg: currentKg, pct: pctAdj, day: as.totalDays, nextKg: r(currentKg * (1 + pctAdj)) });
+  // Keep last 5 sessions
+  if (hist.length > 5) hist.shift();
+  as.autoregAdj[exName] = { sessions: hist };
   saveState();
 }
 
-// Get adjusted kg for an exercise based on stored autoreg, if available
+// Trend-baseret: glidende gennemsnit af seneste 3 justeringer
 function getAutoregKg(exName, baseKg) {
   const as = aState();
-  const adj = as.autoregAdj?.[exName];
-  if (!adj) return null;
-  // Only apply if adjustment is from a previous day (not same day)
-  if (adj.appliedDay >= as.totalDays) return null;
-  const adjusted = r(adj.baseKg * (1 + adj.pct));
-  return adjusted;
+  const hist = getSessionHistory(exName);
+  if (!hist.length) return null;
+  // Only use sessions from previous days
+  const prev = hist.filter(s => s.day < as.totalDays);
+  if (!prev.length) return null;
+  // Use last session's recommended nextKg as starting point
+  const last = prev[prev.length - 1];
+  if (last.nextKg && last.nextKg > 0) return last.nextKg;
+  return r(last.kg * (1 + last.pct));
 }
 
-// Apply autoreg to remaining undone sets in current session
+// Trend-analyse: er vi konsekvent for let/tungt?
+function getTrend(exName) {
+  const hist = getSessionHistory(exName).slice(-3);
+  if (hist.length < 2) return 0;
+  const avg = hist.reduce((a, b) => a + b.pct, 0) / hist.length;
+  return avg; // positive = konsekvent for let, negative = konsekvent for tungt
+}
+
+// Beregn næste kg baseret på reps + RPE via RIR-formel
+function calcNextKg(currentKg, actualReps, actualRPE, targetReps, targetRPE, exName) {
+  if (!currentKg || currentKg <= 0) return currentKg;
+
+  // Estimér e1RM fra faktisk præstation
+  const actualRIR = actualRPE !== null ? 10 - actualRPE : 10 - targetRPE;
+  const e1rm = currentKg * (1 + (actualRIR + actualReps - 1) / 30);
+
+  // Beregn target kg fra mål-reps og mål-RPE
+  const targetRIR = 10 - targetRPE;
+  const targetKg = r(e1rm / (1 + (targetRIR + targetReps - 1) / 30));
+
+  // Trend-korrektion: hvis konsekvent for let/tungt, forstærk justeringen
+  const trend = getTrend(exName);
+  let trendBonus = 0;
+  if (trend > 0.03 && targetKg > currentKg)  trendBonus =  r(currentKg * 0.025); // konsekvent for let
+  if (trend < -0.03 && targetKg < currentKg) trendBonus = -r(currentKg * 0.025); // konsekvent for tungt
+
+  return r(targetKg + trendBonus);
+}
+
+// Beregn pct-justering til intern brug
+function calcPctAdj(currentKg, nextKg) {
+  if (!currentKg || currentKg <= 0) return 0;
+  return (nextKg - currentKg) / currentKg;
+}
+
 function applyAutoregToday(ei, exName, pctAdj, currentKg) {
   const key = logKey();
   const as = aState();
@@ -1840,10 +2507,176 @@ function applyAutoregToday(ei, exName, pctAdj, currentKg) {
     }
   });
   saveState();
-  if (pctAdj !== 0) {
+  if (Math.abs(pctAdj) > 0.005) {
     const dir = pctAdj > 0 ? '↑' : '↓';
     showToast(`Autoregulering ${dir} → ${newKg} kg på resterende sæt`);
   }
+}
+
+// ─── FATIGUE TRACKER ─────────────────────────────────────────────────────────
+// Akkumulerer RPE-data over uger og trigger autoDeload
+
+function getWeeklyFatigue() {
+  const as = aState();
+  const currentDay = as.totalDays;
+  const lookback = 14; // 2 uger
+  const recentDays = as.completedDays.filter(d => d >= currentDay - lookback && d < currentDay);
+
+  let rpeSum = 0, rpeCount = 0;
+  recentDays.forEach(d => {
+    const log = as.logs[`day${d}`];
+    if (!log) return;
+    log.exercises.forEach(ex => {
+      ex.sets.forEach(s => {
+        if (s.done && s.rpe) { rpeSum += parseFloat(s.rpe); rpeCount++; }
+      });
+    });
+  });
+
+  if (rpeCount < 5) return null; // ikke nok data
+  return rpeSum / rpeCount;
+}
+
+function shouldAutoDeload() {
+  const fatigue = getWeeklyFatigue();
+  if (!fatigue) return false;
+  return fatigue >= 8.5;
+}
+
+// Trigger actual deload week when fatigue is critical
+function checkAndTriggerDeload() {
+  if (!shouldAutoDeload()) return false;
+  const week = getWeek();
+  if (isDeload(week) || isTest(week)) return false;
+  // Only trigger once — don't re-trigger if already in a manual deload
+  const as = aState();
+  if (as.autoDeloadTriggered === as.totalDays) return false;
+  return true;
+}
+
+// ─── WEEKLY VOLUME DASHBOARD ─────────────────────────────────────────────────
+
+const MUSCLE_MAP = {
+  // Chest
+  'Bench Press': 'Bryst', 'Bench Press — 1RM Forsøg': 'Bryst',
+  'Incline DB Press': 'Bryst', 'Incline DB Press (variation)': 'Bryst',
+  'Chest Fly (Machine)': 'Bryst', 'DB Bench (variation)': 'Bryst',
+  // Shoulders
+  'OHP': 'Skulder', 'DB Skulder Press': 'Skulder',
+  'Lateral Raise (Machine)': 'Skulder', 'Rear Delt Reverse Fly (Machine)': 'Skulder',
+  'Face Pull': 'Skulder',
+  // Triceps
+  'Overhead Triceps Ext. (Cable)': 'Triceps', 'Triceps Extension (Cable)': 'Triceps',
+  'Skull Crusher': 'Triceps',
+  // Quads
+  'Squat': 'Quad', 'Squat — 1RM Forsøg': 'Quad',
+  'Front Squat / SSB': 'Quad', 'Hack Squat (Machine)': 'Quad',
+  'Leg Extension (Machine)': 'Quad',
+  // Posterior chain
+  'Deadlift (Conv.)': 'Post. Chain', 'Deadlift — 1RM Forsøg': 'Post. Chain',
+  'Romanian Deadlift': 'Post. Chain', 'Hip Thrust (Barbell)': 'Post. Chain',
+  'Seated Leg Curl (Machine)': 'Post. Chain', 'Nordic Curl': 'Post. Chain',
+  'Jefferson Curl': 'Post. Chain',
+  // Back
+  'Smith Machine Row': 'Ryg', 'Barbell Row': 'Ryg',
+  'Lat Pulldown Wide Grip': 'Ryg', 'Seated Cable Row (V-Grip)': 'Ryg',
+  'Chest Supported Row': 'Ryg', 'Weighted Pull-up': 'Ryg',
+  'Assisted Pull-up / Lat Pulldown': 'Ryg',
+  // Biceps
+  'Preacher Curl (DB)': 'Biceps', 'DB Curl': 'Biceps',
+  'Hammer Curl': 'Biceps', 'Reverse Curl (Cable)': 'Biceps',
+  // Glutes/Adductors
+  'Hip Adduction (Machine)': 'Adduktor',
+  // Calves
+  'Cable Crunch': 'Core',
+  'Box Jump': 'Core',
+  'Calf Raise (Machine)': 'Lægge', 'Single Leg Calf Raise (BB)': 'Lægge', 'Calf Raise': 'Lægge',
+};
+
+// Evidensbaserede ugentlige sæt-anbefalinger per muskelgruppe
+const VOLUME_TARGETS = {
+  'Bryst':       { min: 10, max: 20 },
+  'Skulder':     { min: 10, max: 20 },
+  'Triceps':     { min: 8,  max: 18 },
+  'Quad':        { min: 12, max: 20 },
+  'Post. Chain': { min: 10, max: 20 },
+  'Ryg':         { min: 12, max: 22 },
+  'Biceps':      { min: 8,  max: 18 },
+  'Adduktor':    { min: 6,  max: 12 },
+  'Lægge':       { min: 8,  max: 16 },
+};
+
+function getWeeklyVolume() {
+  const as = aState();
+  const weekStart = (getWeek() - 1) * 7;
+  const weekEnd   = getWeek() * 7;
+  const weekDays  = as.completedDays.filter(d => d >= weekStart && d < weekEnd);
+
+  const volume = {};
+  weekDays.forEach(d => {
+    const log = as.logs[`day${d}`];
+    if (!log) return;
+    log.exercises.forEach(ex => {
+      const muscle = MUSCLE_MAP[ex.name];
+      if (!muscle) return;
+      const doneSets = ex.sets.filter(s => s.done).length;
+      volume[muscle] = (volume[muscle] || 0) + doneSets;
+    });
+  });
+  return volume;
+}
+
+// ─── RESTITUTIONSSCORE ───────────────────────────────────────────────────────
+// Gemmes per dag og påvirker dagens vægtforslag
+
+function getRestScore() {
+  const as = aState();
+  return as.restScore?.[as.totalDays] || null;
+}
+
+function saveRestScore(score) {
+  const as = aState();
+  if (!as.restScore) as.restScore = {};
+  as.restScore[as.totalDays] = score;
+  saveState();
+  renderToday();
+}
+
+// Sleep tracking
+function getSleepHours() {
+  const as = aState();
+  return as.sleepLog?.[as.totalDays] || null;
+}
+
+function saveSleepHours(hours) {
+  const as = aState();
+  if (!as.sleepLog) as.sleepLog = {};
+  as.sleepLog[as.totalDays] = hours;
+  saveState();
+  renderToday();
+}
+
+// Sleep modifier — lineær skala: 6t = −5%, 7t = 0%, 8t = +1.25%, 9t+ = +2.5%
+function getSleepModifier() {
+  const h = getSleepHours();
+  if (!h || isNaN(h)) return 0;
+  if (h < 5)   return -0.075;
+  if (h < 6)   return -0.05;
+  if (h < 6.5) return -0.025;
+  if (h < 7)   return -0.0125;
+  if (h < 7.5) return 0;
+  if (h < 8)   return 0.0075;
+  if (h < 8.5) return 0.0125;
+  if (h < 9)   return 0.02;
+  return 0.025;
+}
+
+// Rest score modifier: 1=−5%, 2=−2.5%, 3=0%, 4=+1.25%, 5=+2.5%
+function getRestScoreModifier() {
+  const score = getRestScore();
+  if (!score) return 0;
+  const map = { 1: -0.05, 2: -0.025, 3: 0, 4: 0.0125, 5: 0.025 };
+  return map[score] || 0;
 }
 
 // ─── TOAST ───────────────────────────────────────────────────────────────────
@@ -2090,10 +2923,11 @@ function getChartData(liftKey) {
     .map(d => {
       const log = as.logs[`day${d}`];
       if (!log?.exercises[0]) return null;
-      const sets = log.exercises[0].sets.filter(s => s.done && parseFloat(s.kg) > 0);
+      const sets = log.exercises[0].sets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
       if (!sets.length) return null;
-      const maxKg = Math.max(...sets.map(s => parseFloat(s.kg)));
-      return { x: `Uge ${Math.floor(d / 7) + 1}`, y: maxKg };
+      // Use best e1RM across all sets
+      const bestE1RM = Math.max(...sets.map(s => epley(parseFloat(s.kg), parseInt(s.reps))));
+      return { x: `Uge ${Math.floor(d / 7) + 1}`, y: Math.round(bestE1RM * 10) / 10 };
     }).filter(Boolean);
 
   return { points, color };
