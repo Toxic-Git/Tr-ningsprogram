@@ -1273,13 +1273,13 @@ function renderToday() {
         if (as.sleepLog?.[d]) { sSum += as.sleepLog[d]; sCnt++; }
       });
       const avgRPE = rCnt ? (rSum/rCnt).toFixed(1) : '—';
-      const avgSlp = sCnt ? (sSum/sCnt).toFixed(1) : '—';
+      const avgSlp = sCnt ? Math.round(sSum/sCnt) : '—';
       html += `<div class="suggestion-bar" style="background:rgba(212,168,67,0.06);border-color:rgba(212,168,67,0.2);flex-direction:column;gap:6px;align-items:flex-start;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--gold);">UGE ${prevWeek} OPSUMMERING</div>
         <div style="display:flex;gap:20px;font-size:13px;">
           <span>🏋️ <strong>${wk}</strong> træninger</span>
           <span>⚡ RPE <strong>${avgRPE}</strong></span>
-          <span>💤 <strong>${avgSlp}t</strong> søvn</span>
+          <span>🔋 Energy <strong>${avgSlp}</strong></span>
         </div>
       </div>`;
     }
@@ -1301,15 +1301,15 @@ function renderToday() {
   }
 
   const restScore = getRestScore();
-  const sleepHours = getSleepHours();
-  if ((!restScore || !sleepHours) && day.type === 'workout') {
+  const energyScore = getEnergyScore();
+  if ((!restScore || !energyScore) && day.type === 'workout') {
     html += `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:10px;">`;
     if (!restScore) {
       html += `<div style="display:flex;align-items:center;gap:12px;">
         <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Restitutionsniveau i dag?</div>
         <div style="display:flex;gap:6px;">
           ${[1,2,3,4,5].map(n => `
-            <button onclick="saveRestScore(${n}); document.getElementById('rest-prompt').style.display='none';"
+            <button onclick="saveRestScore(${n});"
               style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
                      background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;
                      font-family:'Barlow Condensed',sans-serif;cursor:pointer;">${n}</button>
@@ -1317,32 +1317,32 @@ function renderToday() {
         </div>
       </div>`;
     }
-    if (!sleepHours) {
+    if (!energyScore) {
       html += `<div style="display:flex;align-items:center;gap:12px;">
-        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Søvn i nat (timer)?</div>
+        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Samsung Energy Score?</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input type="number" inputmode="decimal" step="0.25" min="1" max="12"
-            placeholder="7.5"
-            onchange="saveSleepHours(parseFloat(this.value))"
+          <input type="number" inputmode="numeric" min="0" max="100"
+            placeholder="72"
+            onchange="saveEnergyScore(parseInt(this.value))"
             style="width:64px;background:var(--surface2);border:1px solid var(--border);
                    border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
                    font-size:16px;font-weight:700;padding:7px 10px;text-align:center;
                    -webkit-appearance:none;appearance:none;">
-          <span style="font-size:12px;color:var(--muted);">t</span>
+          <span style="font-size:12px;color:var(--muted);">/100</span>
         </div>
       </div>`;
     }
     html += `</div>`;
-  } else if ((restScore || sleepHours) && day.type === 'workout') {
+  } else if ((restScore || energyScore) && day.type === 'workout') {
     const restMod = getRestScoreModifier() + getSleepModifier();
-    const sleepMod = getSleepModifier();
-    const totalMod = restMod + sleepMod;
+    const totalMod = restMod;
     if (totalMod !== 0) {
       const dir = totalMod > 0 ? '↑' : '↓';
       const emoji = totalMod > 0 ? '⚡' : '😴';
+      const energyColor = energyScore >= 76 ? 'var(--green)' : energyScore >= 61 ? 'var(--text)' : 'var(--dl)';
       html += `<div class="suggestion-bar">
         <div class="suggestion-icon">${emoji}</div>
-        <div class="suggestion-text"><strong>Restitution ${restScore || '—'}/5 · Søvn ${sleepHours || '—'}t</strong> — vægte justeret ${dir} ${Math.abs(totalMod*100).toFixed(1)}% i dag</div>
+        <div class="suggestion-text"><strong>Restitution ${restScore || '—'}/5 · Energy ${energyScore ? `<span style="color:${energyColor}">${energyScore}</span>` : '—'}/100</strong> — vægte justeret ${dir} ${Math.abs(totalMod*100).toFixed(1)}% i dag</div>
       </div>`;
     }
   }
@@ -2157,13 +2157,14 @@ function renderWeeklySummary() {
   });
   const avgRPE = rpeCount > 0 ? (rpeSum/rpeCount).toFixed(1) : '—';
 
-  // Average sleep
+  // Average energy score
   let sleepSum = 0, sleepCount = 0;
   for (let d = prevStart; d < prevEnd; d++) {
     const h = as.sleepLog?.[d];
     if (h) { sleepSum += h; sleepCount++; }
   }
-  const avgSleep = sleepCount > 0 ? (sleepSum/sleepCount).toFixed(1) : '—';
+  const avgEnergy = sleepCount > 0 ? Math.round(sleepSum/sleepCount) : null;
+  const avgEnergyStr = avgEnergy !== null ? avgEnergy.toString() : '—';
 
   // SBD progress — compare e1RM from last 2 primary sessions
   const sbdProgress = [];
@@ -2199,8 +2200,8 @@ function renderWeeklySummary() {
         <div style="font-size:11px;color:var(--muted);">gns. RPE</div>
       </div>
       <div style="text-align:center;">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${parseFloat(avgSleep) < 7 ? 'var(--dl)' : 'var(--green)'};">${avgSleep}t</div>
-        <div style="font-size:11px;color:var(--muted);">gns. søvn</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:${avgEnergy !== null && avgEnergy < 61 ? 'var(--dl)' : 'var(--green)'};">${avgEnergyStr}</div>
+        <div style="font-size:11px;color:var(--muted);">gns. energy</div>
       </div>
     </div>`;
 
@@ -2221,11 +2222,11 @@ function renderWeeklySummary() {
 
   // Simple text verdict
   const fatigueHigh = parseFloat(avgRPE) >= 8.5;
-  const sleepLow    = parseFloat(avgSleep) < 7;
+  const sleepLow = avgEnergy !== null && avgEnergy < 61;
   let verdict = '';
-  if (fatigueHigh && sleepLow) verdict = '😮‍💨 Høj træthed og lav søvn — overvej deload eller ekstra hviledag.';
+  if (fatigueHigh && sleepLow) verdict = '😮‍💨 Høj træthed og lav Energy Score — overvej deload eller ekstra hviledag.';
   else if (fatigueHigh)        verdict = '💪 Hård uge — god indsats. Hold øje med restitution denne uge.';
-  else if (sleepLow)           verdict = '😴 Lav søvn sidste uge — prioriter søvn for bedre adaptation.';
+  else if (sleepLow)           verdict = '😴 Lav Energy Score sidst — prioriter søvn og restitution.';
   else if (workouts >= 5)      verdict = '✅ Stærk uge — god konsistens og kontrolleret belastning.';
   else                         verdict = '📈 Solid uge. Fortsæt som planlagt.';
 
@@ -2643,31 +2644,29 @@ function saveRestScore(score) {
 }
 
 // Sleep tracking
-function getSleepHours() {
+function getEnergyScore() {
   const as = aState();
   return as.sleepLog?.[as.totalDays] || null;
 }
 
-function saveSleepHours(hours) {
+function saveEnergyScore(score) {
   const as = aState();
   if (!as.sleepLog) as.sleepLog = {};
-  as.sleepLog[as.totalDays] = hours;
+  as.sleepLog[as.totalDays] = score;
   saveState();
   renderToday();
 }
 
-// Sleep modifier — lineær skala: 6t = −5%, 7t = 0%, 8t = +1.25%, 9t+ = +2.5%
+// Energy Score modifier — Samsung Health skala 0–100
+// Neutralpunkt: 61–75 = 0%, under = minus, over = plus
 function getSleepModifier() {
-  const h = getSleepHours();
-  if (!h || isNaN(h)) return 0;
-  if (h < 5)   return -0.075;
-  if (h < 6)   return -0.05;
-  if (h < 6.5) return -0.025;
-  if (h < 7)   return -0.0125;
-  if (h < 7.5) return 0;
-  if (h < 8)   return 0.0075;
-  if (h < 8.5) return 0.0125;
-  if (h < 9)   return 0.02;
+  const s = getEnergyScore();
+  if (!s || isNaN(s)) return 0;
+  if (s <= 30)  return -0.075;
+  if (s <= 50)  return -0.05;
+  if (s <= 60)  return -0.025;
+  if (s <= 75)  return 0;
+  if (s <= 85)  return 0.0125;
   return 0.025;
 }
 
