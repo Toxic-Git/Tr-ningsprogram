@@ -870,7 +870,7 @@ const ACC_TEMPLATES = {
     { name:'Seated Cable Row (V-Grip)',      badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:79    },
     { name:'Reverse Curl (Cable)',           badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:14.7  },
   ],
-  // CST sekundær (dag 5) — OHP fokus
+  // CST sekundær (dag 5) — Pause Bench fokus
   cst2: [
     { name:'Incline DB Press (variation)',   badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:50    },
     { name:'Rear Delt Reverse Fly (Machine)',badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:120   },
@@ -886,8 +886,9 @@ const ACC_TEMPLATES = {
     { name:'Calf Raise (Machine)',       badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:130, note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
     { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
   ],
-  // B&B sekundær (dag 8) — Pull-up fokus + Jefferson Curl her
+  // B&B sekundær (dag 8) — Deficit DL fokus + Weighted Pull-up her
   bb2: [
+    { name:'Weighted Pull-up',               badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:10,   note:'Tilføj vægt via bælte. Kør bodyweight hvis 5 reps er svært.' },
     { name:'Smith Machine Row',              badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:82.5  },
     { name:'Lat Pulldown Wide Grip',         badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:72.5  },
     { name:'Jefferson Curl',                 badge:'acc', sets:3, reps:8, repsRange:'6–10',kg:40,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
@@ -949,9 +950,9 @@ function getPrimaryLift(dayId, week) {
     case 'cst1': return { name: test ? 'Bench Press — 1RM Forsøg' : 'Bench Press', badge:'bp', type:'primary', scheme: getSBDScheme('bench', week), warmup: true, note: test ? testNote : null };
     case 'low1': return { name: test ? 'Squat — 1RM Forsøg' : 'Squat',            badge:'sq', type:'primary', scheme: getSBDScheme('squat', week),  warmup: true, note: test ? testNote : null };
     case 'bb1':  return { name: test ? 'Deadlift — 1RM Forsøg' : 'Deadlift (Conv.)', badge:'dl', type:'primary', scheme: getSBDScheme('deadlift', week), warmup: true, note: test ? 'Conventional. Fuldt fokus. 10 min. pause.' : null };
-    case 'cst2': return { name:'OHP', badge:'bp', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 50, pct: null }, warmup: true };
-    case 'low2': return { name:'Front Squat / SSB', badge:'sq', type:'secondary', scheme:{ sets: 4, reps: 8, repsRange:'6–8', kg: 77.5, pct: null }, warmup: true };
-    case 'bb2':  return { name:'Weighted Pull-up', badge:'dl', type:'secondary', scheme:{ sets: 4, reps: 6, repsRange:'4–6', kg: 10, pct: null }, warmup: false, note:'Tilføj vægt via bælte. Kør bodyweight hvis 6 reps er svært.' };
+    case 'cst2': return { name:'Pause Bench Press', badge:'bp', type:'secondary', scheme:{ sets: 3, reps: 3, repsRange:'2–4', kg: r(getBP()*0.625), pct: null }, warmup: true, note:'2–3 sek. pause på brystet. Ingen bounce. Fokus på position og eksplosiv presning.' };
+    case 'low2': return { name:'Box Squat', badge:'sq', type:'secondary', scheme:{ sets: 3, reps: 3, repsRange:'2–4', kg: r(getSQ()*0.60), pct: null }, warmup: true, note:'Sid helt ned på box, 1–2 sek. pause, eksplodér op. Eliminerer stretch-reflex.' };
+    case 'bb2':  return { name:'Deficit Deadlift (2 cm)', badge:'dl', type:'secondary', scheme:{ sets: 3, reps: 3, repsRange:'2–4', kg: r(getDL()*0.65), pct: null }, warmup: true, note:'2 cm deficit — stå på vægtskinne eller lille platform. Fokus på position fra gulvet, ikke hastighed.' };
     default: return null;
   }
 }
@@ -1098,7 +1099,10 @@ function getExercises(dayId, week) {
     });
   }
 
-  const bdScheme = primary.scheme ? getBackdownScheme(primary.scheme.kg, week) : null;
+  const TECHNICAL_DAYS = ['cst2', 'low2', 'bb2'];
+  const bdScheme = primary.scheme && !TECHNICAL_DAYS.includes(dayId)
+    ? getBackdownScheme(primary.scheme.kg, week)
+    : null;
   const backdown = bdScheme ? [{
     name: primary.name + ' — Backdown',
     badge: primary.badge, type: 'backdown',
@@ -1470,23 +1474,35 @@ function renderToday() {
           : parseInt(repParts[0]);
         const suggested = r(oneRM / (1 + (RIR + targetReps - 1) / 30));
         if (suggested > 0 && Math.abs(suggested - ex.scheme.kg) >= 2.5) {
-          rpeWeightHint = `<span style="font-size:11px;color:var(--muted);margin-left:4px;">(~${suggested} kg ved RPE ${targetRPE})</span>`;
+          rpeWeightHint = suggested; // store as number, render below
         }
       }
     }
+
+    // Render hint as number for use in warmup input, or text for accessories
+    const rpeHintKg = typeof rpeWeightHint === 'number' ? rpeWeightHint : null;
+    const rpeHintHtml = rpeHintKg
+      ? `<span style="font-size:11px;color:var(--gold);margin-left:4px;">→ ~${rpeHintKg} kg ved RPE</span>`
+      : '';
 
     html += `<div class="ex-card">
       <div class="ex-header">
         <div>
           <div class="ex-name">${ex.name}</div>
-          <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeWeightHint} &nbsp;${rpeHtml(ex.type, week, ex.name)}</div>
+          <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeHintHtml} &nbsp;${rpeHtml(ex.type, week, ex.name)}</div>
         </div>
         <div class="ex-badge ${badgeClass}">${badgeLabel}</div>
       </div>`;
 
     // Warmup section for primary lifts
     if (showWarmup) {
-      const storedWarmupKg = log.exercises[ei].warmupKg || ex.scheme.kg || '';
+      // Use rpeHintKg as default if no manual input stored yet
+      const storedWarmupKg = log.exercises[ei].warmupKg || rpeHintKg || ex.scheme.kg || '';
+      // Also pre-fill sets if not already done
+      if (!log.exercises[ei].warmupKg && rpeHintKg) {
+        log.exercises[ei].warmupKg = rpeHintKg;
+        log.exercises[ei].sets.forEach(s => { if (!s.done && !s.kg) s.kg = rpeHintKg; });
+      }
       const warmups = calcWarmups(storedWarmupKg);
       html += `<div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
@@ -1518,7 +1534,9 @@ function renderToday() {
       const done = s.done;
       const isLastSet = si === totalSets - 1;
       const showRPE = showRPEInput && isLastSet;
-      const kgPlaceholder = displayKg > 0 ? displayKg : displayKg === 0 ? 'BW' : '—';
+      const kgPlaceholder = rpeHintKg && ex.type === 'acc'
+        ? rpeHintKg
+        : displayKg > 0 ? displayKg : displayKg === 0 ? 'BW' : '—';
       const gridCols = showRPEInput ? '36px 1fr 1fr 52px 44px' : '36px 1fr 1fr 44px';
       html += `<div class="${showRPEInput ? 'set-row-5col' : 'set-row'} ${done ? 'completed' : ''}" id="setrow_${ei}_${si}" style="grid-template-columns:${gridCols};">
         <div class="set-num">${si + 1}</div>
@@ -2560,6 +2578,7 @@ function checkAndTriggerDeload() {
 const MUSCLE_MAP = {
   // Chest
   'Bench Press': 'Bryst', 'Bench Press — 1RM Forsøg': 'Bryst',
+  'Pause Bench Press': 'Bryst',
   'Incline DB Press': 'Bryst', 'Incline DB Press (variation)': 'Bryst',
   'Chest Fly (Machine)': 'Bryst', 'DB Bench (variation)': 'Bryst',
   // Shoulders
@@ -2571,18 +2590,19 @@ const MUSCLE_MAP = {
   'Skull Crusher': 'Triceps',
   // Quads
   'Squat': 'Quad', 'Squat — 1RM Forsøg': 'Quad',
-  'Front Squat / SSB': 'Quad', 'Hack Squat (Machine)': 'Quad',
-  'Leg Extension (Machine)': 'Quad',
+  'Box Squat': 'Quad',
+  'Hack Squat (Machine)': 'Quad', 'Leg Extension (Machine)': 'Quad',
   // Posterior chain
   'Deadlift (Conv.)': 'Post. Chain', 'Deadlift — 1RM Forsøg': 'Post. Chain',
+  'Deficit Deadlift (2 cm)': 'Post. Chain',
   'Romanian Deadlift': 'Post. Chain', 'Hip Thrust (Barbell)': 'Post. Chain',
   'Seated Leg Curl (Machine)': 'Post. Chain', 'Nordic Curl': 'Post. Chain',
   'Jefferson Curl': 'Post. Chain',
   // Back
   'Smith Machine Row': 'Ryg', 'Barbell Row': 'Ryg',
   'Lat Pulldown Wide Grip': 'Ryg', 'Seated Cable Row (V-Grip)': 'Ryg',
-  'Chest Supported Row': 'Ryg', 'Weighted Pull-up': 'Ryg',
-  'Assisted Pull-up / Lat Pulldown': 'Ryg',
+  'Weighted Pull-up': 'Ryg', 'Assisted Pull-up / Lat Pulldown': 'Ryg',
+  'Chest Supported Row': 'Ryg',
   // Biceps
   'Preacher Curl (DB)': 'Biceps', 'DB Curl': 'Biceps',
   'Hammer Curl': 'Biceps', 'Reverse Curl (Cable)': 'Biceps',
@@ -2884,7 +2904,7 @@ function getProgressionSuggestion(dayId, week) {
 
   const primaryExName = {
     cst1:'Bench Press', low1:'Squat', bb1:'Deadlift (Conv.)',
-    cst2:'OHP', low2:'Front Squat / SSB', bb2:'Weighted Pull-up'
+    cst2:'Pause Bench Press', low2:'Box Squat', bb2:'Deficit Deadlift (2 cm)'
   }[dayId];
 
   // Check if last session was completed at target reps
