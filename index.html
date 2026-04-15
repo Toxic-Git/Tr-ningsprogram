@@ -851,48 +851,47 @@ const ACC_TEMPLATES = {
   // CST primær (dag 1) — Bench fokus
   cst1: [
     { name:'Incline DB Press',               badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:56    },
+    { name:'Overhead Triceps Ext. (Cable)',  badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:29.65 },
     { name:'Chest Fly (Machine)',            badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:62.5  },
     { name:'Lateral Raise (Machine)',        badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:135   },
-    { name:'Overhead Triceps Ext. (Cable)',  badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:29.65 },
   ],
-  // Lower primær (dag 2) — Box Jump først, derefter Squat-støtte
+  // Lower primær (dag 2) — Squat fokus, minimal fatigue
   low1: [
-    { name:'Romanian Deadlift',          badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:80   },
-    { name:'Seated Leg Curl (Machine)',  badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:87.5 },
-    { name:'Leg Extension (Machine)',    badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:90   },
-    { name:'Calf Raise (Machine)',       badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:130, note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
-    { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
+    { name:'Hack Squat (Machine)',       badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:97.5 },
+    { name:'Leg Extension (Machine)',   badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:90   },
+    { name:'Seated Leg Curl (Machine)', badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:87.5 },
+    { name:'Calf Raise (Machine)',      badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:130, note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
+    { name:'Cable Crunch',              badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
   ],
-  // B&B primær (dag 4) — Deadlift fokus, max 4 øvelser
+  // B&B primær (dag 4) — Deadlift fokus
   bb1: [
-    { name:'Smith Machine Row',              badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:87.5  },
-    { name:'Lat Pulldown Wide Grip',         badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:77.6  },
-    { name:'Seated Cable Row (V-Grip)',      badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:79    },
-    { name:'Reverse Curl (Cable)',           badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:14.7  },
+    { name:'Lat Pulldown Wide Grip',     badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:77.6 },
+    { name:'Smith Machine Row',          badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:87.5 },
+    { name:'Seated Cable Row (V-Grip)', badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:79   },
+    { name:'Hammer Curl (DB)',           badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:20   },
   ],
   // CST sekundær (dag 5) — Pause Bench fokus
   cst2: [
     { name:'Incline DB Press (variation)',   badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:50    },
-    { name:'Rear Delt Reverse Fly (Machine)',badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:120   },
-    { name:'Chest Fly (Machine)',            badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:57.5  },
     { name:'Triceps Extension (Cable)',      badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:25    },
+    { name:'Rear Delt Reverse Fly (Machine)',badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:120   },
+    { name:'Face Pull (Cable)',              badge:'acc', sets:3, reps:15,repsRange:'12–20',kg:25   },
   ],
-  // Lower sekundær (dag 7) — tung accessory compound-dag
+  // Lower sekundær (dag 7) — posterior chain fokus + hinge
   low2: [
-    { name:'Hack Squat (Machine)',       badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:97.5 },
+    { name:'Romanian Deadlift',          badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:80   },
     { name:'Hip Thrust (Barbell)',       badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:85   },
     { name:'Hip Adduction (Machine)',    badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:70   },
     { name:'Seated Leg Curl (Machine)', badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:82.5 },
-    { name:'Calf Raise (Machine)',       badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:130, note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
     { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
   ],
-  // B&B sekundær (dag 8) — Deficit DL fokus + Weighted Pull-up her
+  // B&B sekundær (dag 8) — Deficit DL fokus, variation fra dag 4
   bb2: [
-    { name:'Weighted Pull-up',               badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:10,   note:'Tilføj vægt via bælte. Kør bodyweight hvis 5 reps er svært.' },
-    { name:'Smith Machine Row',              badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:82.5  },
-    { name:'Lat Pulldown Wide Grip',         badge:'acc', sets:3, reps:5, repsRange:'4–6', kg:72.5  },
-    { name:'Jefferson Curl',                 badge:'acc', sets:3, reps:8, repsRange:'6–10',kg:40,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
-    { name:'Preacher Curl (DB)',             badge:'acc', sets:3, reps:10,repsRange:'8–12',kg:22.9  },
+    { name:'Weighted Pull-up',                   badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:10,  note:'Tilføj vægt via bælte. Kør bodyweight hvis 5 reps er svært.' },
+    { name:'Chest Supported Row (Machine)',      badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:60,  note:'Bryst mod puden — eliminerer lower back kompensation.' },
+    { name:'Neutral Grip Pulldown',              badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:70,  note:'Neutralt greb rammer lower lats anderledes end bredt greb.' },
+    { name:'Jefferson Curl',                     badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:40,  note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
+    { name:'Preacher Curl (DB)',                 badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:22.9 },
   ],
 };
 
@@ -1021,9 +1020,7 @@ function getLastReps(exName) {
 
 function rpeHtml(type, week, exName) {
   const { val, cls } = getExpectedRPE(type, week);
-  const lastReps = exName ? getLastReps(exName) : null;
-  const hint = lastReps ? ` · ca. ${lastReps} reps igen` : '';
-  return `<span class="rpe-pill ${cls}">RPE ${val}${hint}</span>`;
+  return `<span class="rpe-pill ${cls}">RPE ${val}</span>`;
 }
 
 function getExercises(dayId, week) {
@@ -2584,7 +2581,7 @@ const MUSCLE_MAP = {
   // Shoulders
   'OHP': 'Skulder', 'DB Skulder Press': 'Skulder',
   'Lateral Raise (Machine)': 'Skulder', 'Rear Delt Reverse Fly (Machine)': 'Skulder',
-  'Face Pull': 'Skulder',
+  'Face Pull': 'Skulder', 'Face Pull (Cable)': 'Skulder',
   // Triceps
   'Overhead Triceps Ext. (Cable)': 'Triceps', 'Triceps Extension (Cable)': 'Triceps',
   'Skull Crusher': 'Triceps',
@@ -2602,10 +2599,11 @@ const MUSCLE_MAP = {
   'Smith Machine Row': 'Ryg', 'Barbell Row': 'Ryg',
   'Lat Pulldown Wide Grip': 'Ryg', 'Seated Cable Row (V-Grip)': 'Ryg',
   'Weighted Pull-up': 'Ryg', 'Assisted Pull-up / Lat Pulldown': 'Ryg',
-  'Chest Supported Row': 'Ryg',
+  'Chest Supported Row': 'Ryg', 'Chest Supported Row (Machine)': 'Ryg',
+  'Neutral Grip Pulldown': 'Ryg',
   // Biceps
   'Preacher Curl (DB)': 'Biceps', 'DB Curl': 'Biceps',
-  'Hammer Curl': 'Biceps', 'Reverse Curl (Cable)': 'Biceps',
+  'Hammer Curl': 'Biceps', 'Hammer Curl (DB)': 'Biceps', 'Reverse Curl (Cable)': 'Biceps',
   // Glutes/Adductors
   'Hip Adduction (Machine)': 'Adduktor',
   // Calves
