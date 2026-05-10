@@ -1467,8 +1467,8 @@ function renderToday() {
           ? (parseInt(repParts[0]) + parseInt(repParts[1])) / 2
           : parseInt(repParts[0]);
         const suggested = r(oneRM / (1 + (RIR + targetReps - 1) / 30));
-        if (suggested > 0 && Math.abs(suggested - ex.scheme.kg) >= 2.5) {
-          rpeWeightHint = suggested; // store as number, render below
+        if (suggested > 0 && Math.abs(suggested - (ex.scheme.kg || 0)) >= 1) {
+          rpeWeightHint = suggested;
         }
       }
     }
@@ -1641,13 +1641,16 @@ function renderToday() {
         </div>`;
       }
     }
-    const noteKey = `note_${ex.name.replace(/\s+/g,'_')}`;
-    const savedNote = aState().exerciseNotes?.[noteKey] || ex.note || '';
+    const noteKey = `note_${ex.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '_')}`;
+    const programNote = ex.note || '';
+    const savedNote = aState().exerciseNotes?.[noteKey] !== undefined
+      ? aState().exerciseNotes[noteKey]
+      : programNote;
     html += `<div style="padding:8px 16px 10px;border-top:1px solid var(--border);">
       <textarea
         id="note-${ei}"
         rows="2"
-        placeholder="Tilføj en note til ${ex.name}..."
+        placeholder="${programNote ? programNote : `Tilføj en note til ${ex.name}...`}"
         oninput="saveExerciseNote('${noteKey}', this.value)"
         style="width:100%;background:transparent;border:none;border-radius:0;color:var(--muted);
                font-family:'Barlow',sans-serif;font-size:12px;font-weight:300;line-height:1.5;
@@ -1688,7 +1691,7 @@ function updateWarmupKg(ei, val) {
   if (container) container.innerHTML = renderWarmupBadges(warmups);
   const exSets = as.logs[key].exercises[ei].sets;
   exSets.forEach((s, si) => {
-    if (!s.done) {
+    if (!s.done && !s.userEdited) {
       s.kg = val;
       const inp = document.getElementById(`kg_${ei}_${si}`);
       if (inp) inp.value = val;
@@ -1706,7 +1709,11 @@ function saveExerciseNote(noteKey, val) {
 
 function updateSet(ei, si, field, val) {
   const key = logKey();
-  aState().logs[key].exercises[ei].sets[si][field] = val;
+  const as = aState();
+  as.logs[key].exercises[ei].sets[si][field] = val;
+  if (field === 'kg' || field === 'reps') {
+    as.logs[key].exercises[ei].sets[si].userEdited = true;
+  }
   saveState();
 }
 
@@ -2450,8 +2457,17 @@ function saveAutoregAdjustment(exName, pctAdj, currentKg) {
   const as = aState();
   if (!as.autoregAdj) as.autoregAdj = {};
   const hist = getSessionHistory(exName);
-  hist.push({ kg: currentKg, pct: pctAdj, day: as.totalDays, nextKg: r(currentKg * (1 + pctAdj)) });
-  // Keep last 5 sessions
+  const nextKg = r(currentKg * (1 + pctAdj));
+
+  // Calculate which day this should first apply — skip over deload weeks
+  let applyFromDay = as.totalDays + 1;
+  const applyWeek = Math.floor(applyFromDay / 7) + 1;
+  if (isDeload(applyWeek) || isTest(applyWeek)) {
+    // Defer to the week after deload
+    applyFromDay = applyWeek * 7; // start of week after deload
+  }
+
+  hist.push({ kg: currentKg, pct: pctAdj, day: as.totalDays, nextKg, applyFromDay });
   if (hist.length > 5) hist.shift();
   as.autoregAdj[exName] = { sessions: hist };
   saveState();
@@ -2460,13 +2476,23 @@ function saveAutoregAdjustment(exName, pctAdj, currentKg) {
 // Trend-baseret: glidende gennemsnit af seneste 3 justeringer
 function getAutoregKg(exName, baseKg) {
   const as = aState();
+  const week = getWeek();
+
+  // Never apply autoreg on deload or test weeks — use clean percentages
+  if (isDeload(week) || isTest(week)) return null;
+
   const hist = getSessionHistory(exName);
   if (!hist.length) return null;
-  // Only use sessions from previous days
-  const prev = hist.filter(s => s.day < as.totalDays);
-  if (!prev.length) return null;
-  // Use last session's recommended nextKg as starting point
-  const last = prev[prev.length - 1];
+
+  // Only use sessions that have passed their applyFromDay threshold
+  const applicable = hist.filter(s =>
+    typeof s.day === 'number' &&
+    s.day < as.totalDays &&
+    (s.applyFromDay === undefined || as.totalDays >= s.applyFromDay)
+  );
+  if (!applicable.length) return null;
+
+  const last = applicable[applicable.length - 1];
   if (last.nextKg && last.nextKg > 0) return last.nextKg;
   return r(last.kg * (1 + last.pct));
 }
@@ -2655,21 +2681,25 @@ function saveRestScore(score) {
   if (!as.restScore) as.restScore = {};
   as.restScore[as.totalDays] = score;
   saveState();
+  const scrollY = window.scrollY;
   renderToday();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
+}
+
+function saveEnergyScore(score) {
+  const as = aState();
+  if (!as.sleepLog) as.sleepLog = {};
+  as.sleepLog[as.totalDays] = parseInt(score);
+  saveState();
+  const scrollY = window.scrollY;
+  renderToday();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
 }
 
 // Sleep tracking
 function getEnergyScore() {
   const as = aState();
   return as.sleepLog?.[as.totalDays] || null;
-}
-
-function saveEnergyScore(score) {
-  const as = aState();
-  if (!as.sleepLog) as.sleepLog = {};
-  as.sleepLog[as.totalDays] = score;
-  saveState();
-  renderToday();
 }
 
 // Energy Score modifier — Samsung Health skala 0–100
