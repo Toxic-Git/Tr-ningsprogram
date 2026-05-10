@@ -860,7 +860,7 @@ const ACC_TEMPLATES = {
     { name:'Hack Squat (Machine)',       badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:97.5 },
     { name:'Leg Extension (Machine)',   badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:90   },
     { name:'Seated Leg Curl (Machine)', badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:87.5 },
-    { name:'Calf Raise (Machine)',      badge:'acc', sets:3, reps:10, repsRange:'8–15', kg:130, note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
+    { name:'Calf Raise (Machine)',      badge:'acc', sets:3, reps:8, repsRange:'8–15', kg:130 },
     { name:'Cable Crunch',              badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
   ],
   // B&B primær (dag 4) — Deadlift fokus
@@ -907,7 +907,7 @@ const PARTNER_TEMPLATES = {
     { name:'Hack Squat (Machine)',           sets:3, reps:8, repsRange:'6–10',kg:40    },
     { name:'Leg Extension (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:35    },
     { name:'Seated Leg Curl (Machine)',      sets:3, reps:5, repsRange:'4–6', kg:35    },
-    { name:'Calf Raise (Machine)',           sets:3, reps:10,repsRange:'8–15',kg:60,   note:'Rep-progression: hold vægten, arbejd fra 8 til 15 reps — derefter +5 kg og start ved 8 igen.' },
+    { name:'Calf Raise (Machine)',           sets:3, reps:8, repsRange:'8–15', kg:60 },
     { name:'Cable Crunch',                   sets:3, reps:12,repsRange:'10–15',kg:20   },
   ],
   bb1: [
@@ -1027,17 +1027,28 @@ function getExercises(dayId, week) {
     const template = PARTNER_TEMPLATES[dayId] || [];
     const b = getBlock(week);
     const dl = isDeload(week);
+    const FIXED_RANGE = new Set(['Calf Raise (Machine)','Jefferson Curl','Cable Crunch','Box Jump']);
+    const COMPOUND_ACC = new Set([
+      'Romanian Deadlift','Hack Squat (Machine)','Hip Thrust (Barbell)',
+      'Hip Adduction (Machine)','Smith Machine Row','Lat Pulldown Wide Grip',
+      'Seated Cable Row (V-Grip)','Chest Supported Row (Machine)',
+      'Neutral Grip Pulldown','Weighted Pull-up','Incline DB Press',
+      'Incline DB Press (variation)','Overhead Triceps Ext. (Cable)',
+      'Triceps Extension (Cable)',
+    ]);
     return template.map(a => {
-      const isCompound = a.reps <= 6;
       let sets = a.sets, reps = a.reps, repsRange = a.repsRange;
-      if (isCompound) {
-        if (b === 1)      { sets=3; reps=6; repsRange='4–6'; }
-        else if (b === 2) { sets=3; reps=5; repsRange='4–5'; }
-        else              { sets=3; reps=4; repsRange='3–5'; }
-      } else {
-        if (b === 1)      { sets=3; reps=12; repsRange='10–12'; }
-        else if (b === 2) { sets=3; reps=10; repsRange='8–10'; }
-        else              { sets=3; reps=8;  repsRange='6–8';  }
+      if (!FIXED_RANGE.has(a.name)) {
+        const isCompound = COMPOUND_ACC.has(a.name) || a.reps <= 6;
+        if (isCompound) {
+          if (b === 1)      { sets=3; reps=6; repsRange='4–6'; }
+          else if (b === 2) { sets=3; reps=5; repsRange='4–5'; }
+          else              { sets=3; reps=4; repsRange='3–5'; }
+        } else {
+          if (b === 1)      { sets=3; reps=12; repsRange='10–12'; }
+          else if (b === 2) { sets=3; reps=10; repsRange='8–10'; }
+          else              { sets=3; reps=8;  repsRange='6–8';  }
+        }
       }
       if (dl) sets = Math.max(2, sets - 1);
       return {
@@ -1052,22 +1063,37 @@ function getExercises(dayId, week) {
   const accTemplate = ACC_TEMPLATES[dayId] || [];
 
   const accExercises = accTemplate.map(a => {
-    // Accessory periodisering: rep ranges skalerer per blok
-    // Blok 1: høj volumen/reps, Blok 2: moderat, Blok 3: lav/styrke
     let sets = a.sets, reps = a.reps, repsRange = a.repsRange;
     if (!isPartner) {
       const b = getBlock(week);
       const dl = isDeload(week);
-      const isCompound = a.reps <= 6; // compound acc (4-6 range)
-      if (isCompound) {
-        if (b === 1)      { sets=3; reps=6; repsRange='4–6'; }
-        else if (b === 2) { sets=3; reps=5; repsRange='4–5'; }
-        else              { sets=3; reps=4; repsRange='3–5'; }
-      } else {
-        // isolation acc (8-12 range)
-        if (b === 1)      { sets=3; reps=12; repsRange='10–12'; }
-        else if (b === 2) { sets=3; reps=10; repsRange='8–10'; }
-        else              { sets=3; reps=8;  repsRange='6–8';  }
+
+      // Exercises with special rep schemes — never periodise these
+      const FIXED_RANGE = new Set([
+        'Calf Raise (Machine)', 'Single Leg Calf Raise (BB)',
+        'Jefferson Curl', 'Cable Crunch', 'Box Jump',
+      ]);
+      // Compound accessories: 4-6 range, periodise as compound
+      const COMPOUND_ACC = new Set([
+        'Romanian Deadlift', 'Hack Squat (Machine)', 'Hip Thrust (Barbell)',
+        'Hip Adduction (Machine)', 'Smith Machine Row', 'Lat Pulldown Wide Grip',
+        'Seated Cable Row (V-Grip)', 'Chest Supported Row (Machine)',
+        'Neutral Grip Pulldown', 'Weighted Pull-up', 'Incline DB Press',
+        'Incline DB Press (variation)', 'Overhead Triceps Ext. (Cable)',
+        'Triceps Extension (Cable)',
+      ]);
+
+      if (!FIXED_RANGE.has(a.name)) {
+        const isCompound = COMPOUND_ACC.has(a.name) || a.reps <= 6;
+        if (isCompound) {
+          if (b === 1)      { sets=3; reps=6; repsRange='4–6'; }
+          else if (b === 2) { sets=3; reps=5; repsRange='4–5'; }
+          else              { sets=3; reps=4; repsRange='3–5'; }
+        } else {
+          if (b === 1)      { sets=3; reps=12; repsRange='10–12'; }
+          else if (b === 2) { sets=3; reps=10; repsRange='8–10'; }
+          else              { sets=3; reps=8;  repsRange='6–8';  }
+        }
       }
       if (dl) { sets = Math.max(2, sets-1); }
     }
