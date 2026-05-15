@@ -516,7 +516,31 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
         <div class="chart-empty" id="acc-chart-empty" style="display:none;">Log accessories for at se progression.</div>
       </div>
     </div>
-    <!-- Volume dashboard -->
+    <!-- Bodyweight chart -->
+    <div class="chart-wrap" style="margin-top:0;">
+      <div class="chart-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Kropsvægt over tid</span>
+        <span id="bw-input-wrap" style="display:flex;align-items:center;gap:6px;">
+          <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
+            placeholder="108.0"
+            onchange="saveBodyweight(parseFloat(this.value))"
+            style="width:70px;background:var(--surface2);border:1px solid var(--border);
+                   border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
+                   font-size:14px;font-weight:700;padding:5px 8px;text-align:center;
+                   -webkit-appearance:none;appearance:none;">
+          <span style="font-size:11px;color:var(--muted);">kg</span>
+        </span>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="bw-chart"></canvas>
+        <div class="chart-empty" id="bw-chart-empty" style="display:none;">Log din kropsvægt for at se grafen.</div>
+      </div>
+    </div>
+    <!-- Block progression -->
+    <div class="chart-wrap" id="block-progression-wrap" style="margin-top:0;">
+      <div class="chart-title">Progression per blok</div>
+      <div id="block-progression-content"></div>
+    </div>
     <div class="chart-wrap" id="volume-dashboard" style="margin-top:0;">
       <div class="chart-title">Ugentlig volumen — sæt per muskelgruppe</div>
       <div id="volume-bars"></div>
@@ -1198,9 +1222,9 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   totalDays: 0, logs: {}, completedDays: [],
   timerPrimary: 240, timerAcc: 120,
   oneRM: { sq: 117.02, bp: 89.89, dl: 178.19 },
+  programStart1RM: null, // locked at program start, never changes mid-program
   programHistory: [], exerciseNotes: {}, profile: 'main',
-  pr: {},        // { exName: { e1rm, repPR: {kg: reps}, volPR, setPR: {kg: sets} } }
-  autoregAdj: {}, restScore: {},
+  pr: {}, autoregAdj: {}, restScore: {}, sleepLog: {}, bodyweight: {},
 };
 
 if (!state.timerPrimary)   state.timerPrimary   = 240;
@@ -1223,6 +1247,12 @@ if (!state.restScore) state.restScore = {};
 if (!partnerState.restScore) partnerState.restScore = {};
 if (!state.sleepLog) state.sleepLog = {};
 if (!partnerState.sleepLog) partnerState.sleepLog = {};
+if (!state.bodyweight) state.bodyweight = {};
+// Lock programStart1RM if not set — uses current oneRM as baseline
+if (!state.programStart1RM) {
+  state.programStart1RM = { ...state.oneRM };
+  saveState();
+}
 
 // Migrate old state format if needed
 if (state.week !== undefined && state.totalDays === undefined) {
@@ -1393,7 +1423,8 @@ function renderToday() {
 
   const restScore = getRestScore();
   const energyScore = getEnergyScore();
-  if ((!restScore || !energyScore) && day.type === 'workout') {
+  const todayBW = getBodyweight(as.totalDays);
+  if ((!restScore || !energyScore || !todayBW) && day.type === 'workout') {
     html += `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:10px;">`;
     if (!restScore) {
       html += `<div style="display:flex;align-items:center;gap:12px;">
@@ -1423,17 +1454,33 @@ function renderToday() {
         </div>
       </div>`;
     }
+    if (!todayBW) {
+      html += `<div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Kropsvægt i dag?</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
+            placeholder="108.0"
+            onchange="saveBodyweight(parseFloat(this.value))"
+            style="width:72px;background:var(--surface2);border:1px solid var(--border);
+                   border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
+                   font-size:16px;font-weight:700;padding:7px 10px;text-align:center;
+                   -webkit-appearance:none;appearance:none;">
+          <span style="font-size:12px;color:var(--muted);">kg</span>
+        </div>
+      </div>`;
+    }
     html += `</div>`;
-  } else if ((restScore || energyScore) && day.type === 'workout') {
+  } else if ((restScore || energyScore || todayBW) && day.type === 'workout') {
     const restMod = getRestScoreModifier() + getSleepModifier();
     const totalMod = restMod;
-    if (totalMod !== 0) {
+    if (totalMod !== 0 || todayBW) {
       const dir = totalMod > 0 ? '↑' : '↓';
       const emoji = totalMod > 0 ? '⚡' : '😴';
       const energyColor = energyScore >= 76 ? 'var(--green)' : energyScore >= 61 ? 'var(--text)' : 'var(--dl)';
+      const bwStr = todayBW ? ` · <strong>${todayBW} kg</strong>` : '';
       html += `<div class="suggestion-bar">
         <div class="suggestion-icon">${emoji}</div>
-        <div class="suggestion-text"><strong>Restitution ${restScore || '—'}/5 · Energy ${energyScore ? `<span style="color:${energyColor}">${energyScore}</span>` : '—'}/100</strong> — vægte justeret ${dir} ${Math.abs(totalMod*100).toFixed(1)}% i dag</div>
+        <div class="suggestion-text"><strong>Restitution ${restScore || '—'}/5 · Energy ${energyScore ? `<span style="color:${energyColor}">${energyScore}</span>` : '—'}/100</strong>${bwStr}${totalMod !== 0 ? ` — vægte justeret ${dir} ${Math.abs(totalMod*100).toFixed(1)}%` : ''}</div>
       </div>`;
     }
   }
@@ -1543,9 +1590,11 @@ function renderToday() {
       const rmKey = liftRMMap[ex.name] || liftRMMap[baseName];
 
       let oneRM = 0;
+      let hasHistory = false;
       if (rmKey) {
-        // Primary SBD lift — use actual 1RM
+        // Primary SBD lift — always use actual 1RM
         oneRM = rmKey === 'bp' ? getBP() : rmKey === 'sq' ? getSQ() : getDL();
+        hasHistory = true;
       } else {
         // Accessory — estimate e1RM from last logged set using Epley
         const matchingDays = as.completedDays
@@ -1558,16 +1607,17 @@ function renderToday() {
           if (!exLog) continue;
           const doneSets = exLog.sets.filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
           if (!doneSets.length) continue;
-          // Pick heaviest set
           const best = doneSets.reduce((a, b) =>
             epley(parseFloat(a.kg), parseInt(a.reps)) > epley(parseFloat(b.kg), parseInt(b.reps)) ? a : b
           );
           oneRM = epley(parseFloat(best.kg), parseInt(best.reps));
+          hasHistory = true;
           break;
         }
       }
 
-      if (oneRM > 0) {
+      // Only show hint for SBD lifts — accessories run to failure, RIR formula not applicable
+      if (oneRM > 0 && rmKey) {
         const rpeInfo = getExpectedRPE(ex.type, week);
         const rpeParts = rpeInfo.val.split('–');
         const targetRPE = rpeParts.length > 1
@@ -1595,7 +1645,7 @@ function renderToday() {
       <div class="ex-header">
         <div>
           <div class="ex-name">${ex.name}</div>
-          <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeHintHtml} &nbsp;${rpeHtml(ex.type, week, ex.name)}</div>
+          <div class="ex-target">${ex.scheme.sets} sæt × ${repsDisplay} reps${kgLabel}${rpeHintHtml} &nbsp;${ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown' ? rpeHtml(ex.type, week, ex.name) : ''}</div>
         </div>
         <div class="ex-badge ${badgeClass}">${badgeLabel}</div>
       </div>`;
@@ -2057,6 +2107,7 @@ function startNewProgram(newSQ, newBP, newDL) {
   });
 
   state.oneRM = { sq: newSQ, bp: newBP, dl: newDL };
+  state.programStart1RM = { sq: newSQ, bp: newBP, dl: newDL }; // lock new baseline
   state.totalDays = 0;
   state.logs = {};
   state.completedDays = [];
@@ -2083,34 +2134,120 @@ function advanceDay() {
 }
 
 function renderProgram() {
-  let html = '';
-  const blocks = [
-    { b:1, label:'AKKUMULATION', cls:'b1', weeks:[1,2,3,4] },
-    { b:2, label:'INTENSIFIKATION', cls:'b2', weeks:[5,6,7,8] },
-    { b:3, label:'REALISERING', cls:'b3', weeks:[9,10,11,12] },
-  ];
   const currentWeek = getWeek();
+  const currentDay  = getCycleDay();
+
+  // ── Top: current position + block info ───────────────────────────────────
+  const blkLabel = ['','AKKUMULATION','INTENSIFIKATION','REALISERING'][getBlock(currentWeek)];
+  const blkCls   = ['','b1','b2','b3'][getBlock(currentWeek)];
+  let html = `
+    <div style="padding:16px 18px 0;">
+      <div class="prog-block-header ${blkCls}" style="margin:0 0 12px;">
+        BLOK ${getBlock(currentWeek)} — ${blkLabel} · UGE ${currentWeek}${isDeload(currentWeek) ? ' · DELOAD' : ''}${isTest(currentWeek) ? ' · 1RM TEST' : ''}
+      </div>
+    </div>`;
+
+  // ── 8-day cycle overview ─────────────────────────────────────────────────
+  html += `<div style="padding:0 18px 12px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+      letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
+      8-DAGES CYKLUS
+    </div>`;
+
+  CYCLE.forEach((day, idx) => {
+    const isCurrent = idx === currentDay;
+    const isRest = day.type === 'rest';
+    const exercises = isRest ? [] : getExercises(day.id, currentWeek);
+    const primary = exercises.find(e => e.type === 'primary');
+    const secondary = exercises.find(e => e.type === 'secondary');
+    const accs = exercises.filter(e => e.type === 'acc');
+    const liftColor = primary?.badge === 'sq' ? 'var(--sq)'
+      : primary?.badge === 'bp' ? 'var(--bp)'
+      : primary?.badge === 'dl' ? 'var(--dl)' : 'var(--muted)';
+
+    html += `<div style="
+      background:${isCurrent ? 'rgba(212,168,67,0.08)' : 'var(--surface)'};
+      border:1px solid ${isCurrent ? 'var(--gold)' : 'var(--border)'};
+      border-radius:var(--radius); padding:12px 14px; margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${isRest ? '0' : '8px'};">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+            letter-spacing:2px;color:var(--muted);">DAG ${idx+1}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;
+            color:${isCurrent ? 'var(--gold)' : 'var(--text)'};">${day.name.toUpperCase()}</span>
+          ${isCurrent ? '<span style="font-size:10px;color:var(--gold);">← Nu</span>' : ''}
+        </div>
+        ${isRest ? '' : `<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:11px;
+          font-weight:700;color:${liftColor};">${primary?.name || ''}</span>`}
+      </div>`;
+
+    if (!isRest) {
+      // Primary + secondary
+      if (primary) {
+        const kg = primary.scheme?.kg;
+        const rr = primary.scheme?.repsRange || primary.scheme?.reps;
+        html += `<div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+          <span style="background:rgba(${primary.badge==='sq'?'74,144,217':primary.badge==='bp'?'212,168,67':'224,92,74'},0.12);
+            color:${liftColor};border:1px solid ${liftColor}33;
+            font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+            padding:2px 8px;border-radius:4px;letter-spacing:1px;">
+            ${primary.scheme?.sets}×${rr}${kg > 0 ? ' · '+kg+' kg' : ''}
+          </span>
+          ${secondary ? `<span style="background:var(--surface2);color:var(--muted);border:1px solid var(--border);
+            font-family:'Barlow Condensed',sans-serif;font-size:11px;
+            padding:2px 8px;border-radius:4px;">
+            ${secondary.name} ${secondary.scheme?.sets}×${secondary.scheme?.repsRange || secondary.scheme?.reps}
+          </span>` : ''}
+        </div>`;
+      }
+      // Accessories
+      if (accs.length) {
+        html += `<div style="font-size:11px;color:var(--muted);line-height:1.7;">
+          ${accs.map(a => `<span style="margin-right:8px;">${a.name}</span>`).join('')}
+        </div>`;
+      }
+    }
+    html += `</div>`;
+  });
+  html += `</div>`;
+
+  // ── 12-week block overview ───────────────────────────────────────────────
+  html += `<div style="padding:0 18px 16px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;
+      letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
+      12-UGERS PROGRAM
+    </div>`;
+
+  const blocks = [
+    { b:1, label:'AKKUMULATION',   cls:'b1', weeks:[1,2,3,4]  },
+    { b:2, label:'INTENSIFIKATION', cls:'b2', weeks:[5,6,7,8]  },
+    { b:3, label:'REALISERING',    cls:'b3', weeks:[9,10,11,12] },
+  ];
 
   blocks.forEach(blk => {
-    html += `<div class="prog-block-header ${blk.cls}">BLOK ${blk.b} — ${blk.label}</div>`;
+    html += `<div class="prog-block-header ${blk.cls}" style="margin-bottom:6px;">
+      BLOK ${blk.b} — ${blk.label}
+    </div>`;
+    html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">`;
     blk.weeks.forEach(w => {
-      const current = w === currentWeek;
-      const label = blockLabel(w);
-      // Count completed workout days that fell in this calendar week
-      const weekStart = (w - 1) * 7;
-      const weekEnd = w * 7;
-      const daysLogged = aState().completedDays.filter(d => d >= weekStart && d < weekEnd).length;
-      const status = daysLogged > 0 ? (daysLogged >= 5 ? '✅' : `${daysLogged} dage`) : '';
-      html += `<div class="prog-week-row" onclick="jumpToWeek(${w})">
-        <div class="prog-week-num ${current ? 'current' : ''}">${w}</div>
-        <div class="prog-week-info">
-          <div class="prog-week-name">${label}${current ? ' ← Nu' : ''}</div>
-          <div class="prog-week-detail">${w===12?'1RM test':'Uge ' + w + ' · ' + (isDeload(w)?'Reduceret volumen':'Normal volumen')}</div>
-        </div>
-        <div class="prog-week-status">${status}</div>
+      const isCur = w === currentWeek;
+      const weekStart = (w-1)*7, weekEnd = w*7;
+      const logged = aState().completedDays.filter(d => d >= weekStart && d < weekEnd).length;
+      const isDl = isDeload(w), isTst = isTest(w);
+      const tag = isTst ? '1RM' : isDl ? 'DELOAD' : blockLabel(w).split(' ').pop();
+      html += `<div onclick="jumpToWeek(${w})" style="
+        background:${isCur ? 'rgba(212,168,67,0.12)' : logged > 0 ? 'rgba(61,184,122,0.06)' : 'var(--surface)'};
+        border:1px solid ${isCur ? 'var(--gold)' : logged > 0 ? 'rgba(61,184,122,0.25)' : 'var(--border)'};
+        border-radius:8px;padding:8px 10px;cursor:pointer;text-align:center;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;
+          color:${isCur ? 'var(--gold)' : 'var(--text)'};">${w}</div>
+        <div style="font-size:9px;color:var(--muted);letter-spacing:0.5px;">${tag}</div>
+        ${logged > 0 ? `<div style="font-size:9px;color:var(--green);">${logged}d ✓</div>` : ''}
       </div>`;
     });
+    html += `</div>`;
   });
+  html += `</div>`;
 
   document.getElementById('program-content').innerHTML = html;
 }
@@ -2393,6 +2530,8 @@ function renderHistory() {
   renderVolumeDashboard();
   renderAccChartTabs();
   renderWeeklySummary();
+  drawBodyweightChart();
+  renderBlockProgression();
 
   // PR summary for main SBD lifts
   const pr = as.pr || {};
@@ -2549,6 +2688,7 @@ function confirmReset() {
       state.pending1RM = {}; state.deloadWeeks = [];
       state.restScore = {}; state.sleepLog = {};
       state.autoDeloadTriggered = null;
+      state.programStart1RM = { ...state.oneRM };
     }
     saveState();
     closeModal();
@@ -2637,6 +2777,192 @@ function updateAutoregBar(ei) {
   }
 }
 // Gemmer op til 5 sessioner per øvelse og bruger glidende gennemsnit
+
+// ─── BODYWEIGHT TRACKING ─────────────────────────────────────────────────────
+
+function getBodyweight(day) {
+  return state.bodyweight?.[day] || null;
+}
+
+function saveBodyweight(kg) {
+  if (!kg || isNaN(kg) || kg <= 0) return;
+  if (!state.bodyweight) state.bodyweight = {};
+  state.bodyweight[aState().totalDays] = kg;
+  saveState();
+  const scrollY = window.scrollY;
+  renderToday();
+  requestAnimationFrame(() => window.scrollTo(0, scrollY));
+}
+
+function drawBodyweightChart() {
+  const canvas = document.getElementById('bw-chart');
+  const empty  = document.getElementById('bw-chart-empty');
+  if (!canvas) return;
+  const bw = state.bodyweight || {};
+  const points = Object.entries(bw)
+    .sort((a,b) => parseInt(a[0]) - parseInt(b[0]))
+    .map(([day, kg]) => ({ x: `Uge ${Math.floor(parseInt(day)/7)+1}`, y: kg }));
+  if (points.length < 2) {
+    canvas.style.display = 'none'; empty.style.display = 'block'; return;
+  }
+  canvas.style.display = 'block'; empty.style.display = 'none';
+  const wrap = canvas.parentElement;
+  canvas.width = wrap.clientWidth; canvas.height = 120;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const vals = points.map(p => p.y);
+  const minV = Math.min(...vals) - 1, maxV = Math.max(...vals) + 1;
+  const pad = { t:8, r:12, b:24, l:48 };
+  const W = canvas.width - pad.l - pad.r, H = canvas.height - pad.t - pad.b;
+  const color = '#3db87a';
+  const xS = i => pad.l + (i / (points.length-1)) * W;
+  const yS = v => pad.t + H - ((v - minV) / (maxV - minV)) * H;
+  ctx.strokeStyle = '#2e3240'; ctx.lineWidth = 1;
+  [0, 0.5, 1].forEach(t => {
+    const y = pad.t + H * (1-t);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+W, y); ctx.stroke();
+    ctx.fillStyle='#6b7280'; ctx.font='10px Barlow,sans-serif'; ctx.textAlign='right';
+    ctx.fillText((minV + t*(maxV-minV)).toFixed(1), pad.l-3, y+3);
+  });
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+H);
+  grad.addColorStop(0, color+'33'); grad.addColorStop(1, color+'00');
+  ctx.beginPath(); ctx.moveTo(xS(0), yS(points[0].y));
+  points.forEach((p,i) => { if(i>0) ctx.lineTo(xS(i), yS(p.y)); });
+  ctx.lineTo(xS(points.length-1), pad.t+H); ctx.lineTo(xS(0), pad.t+H);
+  ctx.closePath(); ctx.fillStyle=grad; ctx.fill();
+  ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin='round';
+  points.forEach((p,i) => i===0 ? ctx.moveTo(xS(i),yS(p.y)) : ctx.lineTo(xS(i),yS(p.y)));
+  ctx.stroke();
+  points.forEach((p,i) => {
+    ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI*2);
+    ctx.fillStyle=color; ctx.fill();
+    if (points.length <= 10 || i % 2 === 0) {
+      ctx.fillStyle='#6b7280'; ctx.font='9px Barlow,sans-serif'; ctx.textAlign='center';
+      ctx.fillText(p.x, xS(i), canvas.height-4);
+    }
+  });
+}
+
+// ─── BLOCK PROGRESSION ───────────────────────────────────────────────────────
+
+function renderBlockProgression() {
+  const wrap = document.getElementById('block-progression-content');
+  if (!wrap) return;
+  const as = aState();
+
+  const startRM = state.programStart1RM || state.oneRM;
+
+  const lifts = [
+    { dayId:'low1', name:'Squat',    color:'var(--sq)', startRM: startRM.sq },
+    { dayId:'cst1', name:'Bench',    color:'var(--bp)', startRM: startRM.bp },
+    { dayId:'bb1',  name:'Deadlift', color:'var(--dl)', startRM: startRM.dl },
+  ];
+
+  // Target e1RM per block based on locked start 1RM
+  // Blok 1 peak: ~82.5%, Blok 2 peak: ~87.5%, Blok 3 peak: ~92.5%
+  const BLOCK_TARGETS = { 1: 0.825, 2: 0.875, 3: 0.925 };
+
+  const blocks = [
+    { b:1, label:'Blok 1', weekStart:1,  weekEnd:4  },
+    { b:2, label:'Blok 2', weekStart:5,  weekEnd:8  },
+    { b:3, label:'Blok 3', weekStart:9,  weekEnd:12 },
+  ];
+
+  function getBlockBestE1RM(dayId, weekStart, weekEnd) {
+    const dayStart = (weekStart-1)*7, dayEnd = weekEnd*7;
+    let best = 0;
+    as.completedDays
+      .filter(d => CYCLE[d%8].id === dayId && d >= dayStart && d < dayEnd)
+      .forEach(d => {
+        const sets = as.logs[`day${d}`]?.exercises[0]?.sets?.filter(
+          s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0) || [];
+        sets.forEach(s => {
+          const e = epley(parseFloat(s.kg), parseInt(s.reps));
+          if (e > best) best = e;
+        });
+      });
+    return best > 0 ? Math.round(best*10)/10 : null;
+  }
+
+  let html = '';
+  lifts.forEach(lift => {
+    const blockVals = blocks.map(b => {
+      const actual = getBlockBestE1RM(lift.dayId, b.weekStart, b.weekEnd);
+      const target = Math.round(lift.startRM * BLOCK_TARGETS[b.b] * (1 + (b.b * 0.035)) * 10) / 10;
+      return { label: b.label, b: b.b, actual, target };
+    });
+
+    const hasData = blockVals.some(b => b.actual !== null);
+    if (!hasData) return;
+
+    const firstActual = blockVals.find(b => b.actual !== null)?.actual;
+    const lastActual  = [...blockVals].reverse().find(b => b.actual !== null)?.actual;
+    const totalGain   = firstActual && lastActual && lastActual !== firstActual
+      ? lastActual - firstActual : null;
+    const vsStart     = lastActual ? lastActual - lift.startRM : null;
+
+    html += `<div style="margin-bottom:18px;">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:${lift.color};">${lift.name}</span>
+        ${vsStart !== null ? `<span style="font-size:12px;color:${vsStart >= 0 ? 'var(--green)' : 'var(--dl)'};">
+          ${vsStart >= 0 ? '+' : ''}${vsStart.toFixed(1)} kg fra start (${lift.startRM} kg)
+        </span>` : `<span style="font-size:11px;color:var(--muted);">Start: ${lift.startRM} kg</span>`}
+      </div>
+      <div style="display:flex;gap:6px;">
+        ${blockVals.map(b => {
+          const hasActual = b.actual !== null;
+          const pct = hasActual ? Math.round(b.actual / b.target * 100) : null;
+          const onTrack = pct !== null && pct >= 95;
+          const bg = !hasActual ? 'var(--surface2)'
+            : onTrack ? 'rgba(61,184,122,0.12)' : 'rgba(212,168,67,0.08)';
+          const currentBlock = getBlock(getWeek());
+          const isCurrent = b.b === currentBlock;
+          return `<div style="flex:1;background:${bg};border-radius:8px;padding:10px 10px;
+            border:1px solid ${isCurrent ? lift.color : 'var(--border)'};opacity:${b.b > currentBlock && !hasActual ? '0.5' : '1'};">
+            <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">${b.label}</div>
+            ${hasActual
+              ? `<div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;">${b.actual}<span style="font-size:10px;font-weight:400;color:var(--muted);"> kg</span></div>
+                 <div style="font-size:10px;color:var(--muted);">Mål: ${b.target} kg</div>
+                 <div style="font-size:10px;color:${onTrack ? 'var(--green)' : 'var(--gold)'};">${pct}% af mål</div>`
+              : `<div style="font-size:11px;color:var(--muted);margin-top:4px;">Mål: ${b.target} kg</div>
+                 <div style="font-size:10px;color:var(--muted);">Ikke startet</div>`}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  // Bodyweight per block
+  const bw = state.bodyweight || {};
+  const bwBlocks = blocks.map(b => {
+    const dayStart = (b.weekStart-1)*7, dayEnd = b.weekEnd*7;
+    const entries = Object.entries(bw)
+      .filter(([d]) => parseInt(d) >= dayStart && parseInt(d) < dayEnd)
+      .map(([,kg]) => kg);
+    if (!entries.length) return null;
+    return { label: b.label, b: b.b, avg: Math.round(entries.reduce((a,c)=>a+c,0)/entries.length*10)/10 };
+  }).filter(Boolean);
+
+  if (bwBlocks.length) {
+    const first = bwBlocks[0].avg, last = bwBlocks[bwBlocks.length-1].avg;
+    const total = last - first;
+    html += `<div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:#3db87a;">Kropsvægt</span>
+        ${bwBlocks.length >= 2 ? `<span style="font-size:12px;color:${total < 0 ? 'var(--green)' : total > 0 ? 'var(--dl)' : 'var(--muted)'};">${total > 0 ? '+' : ''}${total.toFixed(1)} kg siden blok 1</span>` : ''}
+      </div>
+      <div style="display:flex;gap:6px;">
+        ${bwBlocks.map(b => `<div style="flex:1;background:var(--surface2);border-radius:8px;padding:10px 10px;border:1px solid var(--border);">
+          <div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;">${b.label}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;">${b.avg}<span style="font-size:10px;font-weight:400;color:var(--muted);"> kg</span></div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  if (!html) html = `<div style="font-size:12px;color:var(--muted);padding:8px 0;">Log mindst ét primært løft for at se progression.</div>`;
+  wrap.innerHTML = html;
+}
 
 function getSessionHistory(exName) {
   const as = aState();
@@ -3132,12 +3458,14 @@ function getProgressionSuggestion(dayId, week) {
   }[dayId];
 
   // Check if last session was completed at target reps
-  const matches = state.completedDays
+  const matches = aState().completedDays
     .filter(d => CYCLE[d % 8].id === dayId)
     .sort((a, b) => b - a);
-  const lastLog = state.logs[`day${matches[0]}`];
-  const primarySets = lastLog?.exercises[0]?.sets?.filter(s => s.done) || [];
-  const allHitReps = primarySets.every(s => parseInt(s.reps) >= (lastLog.exercises[0].targetReps || 5));
+  if (!matches.length) return null;
+  const lastLog = aState().logs[`day${matches[0]}`];
+  if (!lastLog?.exercises[0]?.sets) return null;
+  const primarySets = lastLog.exercises[0].sets.filter(s => s.done) || [];
+  const allHitReps = primarySets.length > 0 && primarySets.every(s => parseInt(s.reps) >= (lastLog.exercises[0].targetReps || 5));
 
   let suggestion;
   if (allHitReps) {
