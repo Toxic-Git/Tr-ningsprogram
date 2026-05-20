@@ -23,12 +23,19 @@
   --green: #3db87a;
   --red: #e05c4a;
   --radius: 12px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-html, body { height:100%; background:var(--bg); color:var(--text); font-family:'Barlow',sans-serif; overflow-x:hidden; }
+html, body {
+  height:100%; background:var(--bg); color:var(--text);
+  font-family:'Barlow',sans-serif; overflow-x:hidden;
+  /* Prevent bounce scroll on iOS */
+  overscroll-behavior:none;
+}
 
 /* ── VIEWS ── */
-.view { display:none; min-height:100vh; padding-bottom:80px; }
+.view { display:none; min-height:100vh; padding-bottom:calc(80px + var(--safe-bottom)); }
 .view.active { display:block; }
 
 /* ── TOP BAR ── */
@@ -36,7 +43,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
   position:sticky; top:0; z-index:100;
   background:rgba(17,19,24,0.92); backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);
-  padding:14px 18px 12px;
+  padding:calc(14px + var(--safe-top)) 18px 12px;
   display:flex; align-items:center; justify-content:space-between;
 }
 .topbar-title {
@@ -56,14 +63,17 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
   background:rgba(26,29,36,0.97); backdrop-filter:blur(16px);
   border-top:1px solid var(--border);
   display:flex;
+  padding-bottom:var(--safe-bottom);
 }
 .nav-btn {
   flex:1; padding:12px 4px 10px; border:none; background:none;
   color:var(--muted); cursor:pointer; display:flex; flex-direction:column;
   align-items:center; gap:3px; transition:color .15s;
+  /* Minimum touch target */
+  min-height:56px;
 }
 .nav-btn.active { color:var(--gold); }
-.nav-icon { font-size:20px; line-height:1; }
+.nav-icon { font-size:22px; line-height:1; }
 .nav-label { font-size:10px; letter-spacing:1px; text-transform:uppercase; font-weight:600; }
 
 /* ── TODAY VIEW ── */
@@ -107,18 +117,24 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
   padding:14px 16px 10px;
   display:flex; justify-content:space-between; align-items:center;
   border-bottom:1px solid var(--border);
+  gap:8px;
 }
 .ex-name {
   font-family:'Barlow Condensed',sans-serif;
-  font-size:18px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  font-size:17px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  /* Allow wrapping on small screens */
+  word-break:break-word;
 }
 .ex-target {
-  font-size:12px; color:var(--muted); margin-top:2px; font-weight:300;
+  font-size:12px; color:var(--muted); margin-top:3px; font-weight:300;
+  line-height:1.5;
+  /* Allow wrapping */
+  white-space:normal;
 }
 .ex-badge {
   font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
   letter-spacing:1px; text-transform:uppercase; padding:3px 8px;
-  border-radius:4px;
+  border-radius:4px; flex-shrink:0;
 }
 .badge-sq { background:rgba(74,144,217,0.15); color:var(--sq); }
 .badge-bp { background:rgba(212,168,67,0.15); color:var(--bp); }
@@ -129,35 +145,40 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 .badge-bd-dl { background:rgba(224,92,74,0.08); color:var(--dl); border:1px solid rgba(224,92,74,0.3); }
 .badge-power { background:rgba(74,144,217,0.15); color:#7ec8ff; border:1px solid rgba(74,144,217,0.4); }
 
-/* set rows */
+/* set rows — larger touch targets */
 .set-row {
-  display:grid; grid-template-columns:36px 1fr 1fr 44px;
-  gap:8px; padding:10px 16px; align-items:center;
+  display:grid; grid-template-columns:36px 1fr 1fr 48px;
+  gap:8px; padding:12px 16px; align-items:center;
   border-bottom:1px solid var(--border);
   transition:background .15s;
+  /* Min height for comfortable touch */
+  min-height:56px;
 }
 .set-row:last-child { border-bottom:none; }
 .set-row.completed { background:rgba(61,184,122,0.06); }
 .set-num {
-  font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:700;
+  font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700;
   color:var(--muted); text-align:center;
 }
 .set-row.completed .set-num { color:var(--green); }
 
 .set-input {
   background:var(--surface2); border:1px solid var(--border); border-radius:8px;
-  color:var(--text); font-family:'Barlow',sans-serif; font-size:15px;
-  font-weight:500; padding:8px 10px; text-align:center; width:100%;
+  color:var(--text); font-family:'Barlow',sans-serif; font-size:16px;
+  font-weight:500; padding:10px 8px; text-align:center; width:100%;
   -webkit-appearance:none; appearance:none;
+  /* Prevent iOS zoom on focus */
+  font-size:max(16px, 1em);
 }
 .set-input:focus { outline:none; border-color:var(--gold); }
 .set-input.completed-input { border-color:var(--green); color:var(--green); }
 
 .set-label { font-size:10px; color:var(--muted); text-align:center; margin-top:2px; letter-spacing:1px; }
 
+/* Check button — 44px minimum touch target */
 .check-btn {
-  width:36px; height:36px; border-radius:50%; border:2px solid var(--border);
-  background:none; color:var(--muted); font-size:16px; cursor:pointer;
+  width:44px; height:44px; border-radius:50%; border:2px solid var(--border);
+  background:none; color:var(--muted); font-size:18px; cursor:pointer;
   display:flex; align-items:center; justify-content:center; transition:all .15s;
   flex-shrink:0;
 }
@@ -168,7 +189,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
   display:inline-flex; align-items:center; gap:4px;
   font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700;
   letter-spacing:1px; text-transform:uppercase;
-  padding:2px 8px; border-radius:4px; border:1px solid;
+  padding:3px 8px; border-radius:4px; border:1px solid;
 }
 .rpe-easy   { background:rgba(61,184,122,0.12); color:#3db87a; border-color:rgba(61,184,122,0.3); }
 .rpe-mod    { background:rgba(212,168,67,0.12);  color:var(--gold); border-color:rgba(212,168,67,0.3); }
@@ -204,9 +225,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 }
 
 /* PR flash overlay on set row */
-.set-row.pr-flash {
-  animation: rowFlash .6s ease-out;
-}
+.set-row.pr-flash { animation: rowFlash .6s ease-out; }
 @keyframes rowFlash {
   0%   { background:rgba(245,166,35,0.25); }
   100% { background:rgba(61,184,122,0.06); }
@@ -215,41 +234,49 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 /* RPE input on last set */
 .rpe-input {
   background:var(--surface2); border:1px solid var(--border); border-radius:8px;
-  color:var(--gold); font-family:'Barlow Condensed',sans-serif; font-size:14px;
-  font-weight:700; padding:8px 6px; text-align:center; width:100%;
+  color:var(--gold); font-family:'Barlow Condensed',sans-serif;
+  font-size:max(16px, 14px); /* prevent iOS zoom */
+  font-weight:700; padding:10px 6px; text-align:center; width:100%;
   -webkit-appearance:none; appearance:none;
 }
 .rpe-input:focus { outline:none; border-color:var(--gold); }
 .rpe-input::placeholder { color:var(--muted); font-size:12px; font-weight:400; }
 .set-row-5col {
-  display:grid; grid-template-columns:36px 1fr 1fr 52px 44px;
-  gap:6px; padding:10px 16px; align-items:center;
+  display:grid; grid-template-columns:36px 1fr 1fr 52px 48px;
+  gap:6px; padding:12px 16px; align-items:center;
   border-bottom:1px solid var(--border); transition:background .15s;
+  min-height:56px;
 }
 .set-row-5col.completed { background:rgba(61,184,122,0.06); }
 .set-row-5col.completed .set-num { color:var(--green); }
 
 /* Autoreg suggestion */
 .autoreg-bar {
-  padding:10px 16px; border-top:1px solid var(--border);
-  display:flex; align-items:center; gap:10px; font-size:12px;
+  padding:12px 16px; border-top:1px solid var(--border);
+  display:flex; align-items:flex-start; gap:10px; font-size:13px;
 }
-.autoreg-icon { font-size:16px; flex-shrink:0; }
+.autoreg-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
 .autoreg-text { color:var(--muted); font-weight:300; line-height:1.5; flex:1; }
 .autoreg-text strong { font-weight:600; }
 .autoreg-up   strong { color:#3db87a; }
 .autoreg-down strong { color:var(--dl); }
 .autoreg-hold strong { color:var(--gold); }
+
+/* Toast */
 .toast {
-  position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(20px);
-  background:var(--steel); color:var(--text); border:1px solid var(--border);
+  position:fixed; bottom:calc(90px + var(--safe-bottom)); left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:var(--surface); color:var(--text); border:1px solid var(--border);
   border-left:3px solid var(--gold);
   padding:10px 18px; border-radius:8px; font-size:13px; font-weight:400;
   white-space:nowrap; z-index:500; opacity:0;
   transition:opacity .25s, transform .25s;
   pointer-events:none;
+  /* Don't overflow on small screens */
+  max-width:calc(100vw - 36px);
 }
 .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
 .pr-summary {
   margin:0 18px 10px;
   background:linear-gradient(135deg,rgba(245,166,35,0.08),rgba(247,107,28,0.05));
@@ -267,17 +294,23 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
 .pr-summary-row:last-child { border-bottom:none; }
 
 .set-header-row {
-  display:grid; grid-template-columns:36px 1fr 1fr 44px;
-  gap:8px; padding:6px 16px 4px;
+  display:grid; grid-template-columns:36px 1fr 1fr 48px;
+  gap:8px; padding:8px 16px 4px;
 }
-.set-col-label { font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; text-align:center; }
+.set-col-label {
+  font-size:11px; color:var(--muted); letter-spacing:1px;
+  text-transform:uppercase; text-align:center;
+}
 
 /* finish button */
 .finish-btn {
-  margin:18px; padding:16px; border-radius:var(--radius); border:none;
+  margin:18px; padding:18px; border-radius:var(--radius); border:none;
   background:var(--green); color:white; width:calc(100% - 36px);
   font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:700;
   letter-spacing:2px; text-transform:uppercase; cursor:pointer;
+  /* Larger touch target */
+  min-height:56px;
+}
   transition:opacity .15s;
 }
 .finish-btn:active { opacity:0.8; }
@@ -566,7 +599,7 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
             style="padding:6px 14px;border-radius:6px;border:1px solid var(--border);
                    font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
                    letter-spacing:1px;text-transform:uppercase;cursor:pointer;
-                   background:var(--gold);color:var(--ink);">
+                   background:var(--gold);color:var(--bg);">
             Oliver
           </button>
           <button id="btn-partner" onclick="switchProfile('partner')"
@@ -713,6 +746,17 @@ html, body { height:100%; background:var(--bg); color:var(--text); font-family:'
   </div>
 </div>
 
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  const toast = document.getElementById('toast');
+  if (toast) {
+    toast.textContent = `Fejl linje ${line}:${col} — ${msg}`;
+    toast.classList.add('show');
+  }
+  console.error('CRASH:', msg, 'line:', line, 'col:', col, err?.stack);
+  return false;
+};
+</script>
 <script>
 // ─── CACHES ──────────────────────────────────────────────────────────────────
 let _exercisesCache = {};
@@ -1549,6 +1593,7 @@ function renderToday() {
 
   exercises.forEach((ex, ei) => {
     const logEx = log.exercises[ei];
+    if (!logEx) return; // safety guard — should not happen but prevents crash
     const isPrimary = ex.type === 'primary' || ex.type === 'secondary';
     const isBackdown = ex.type === 'backdown';
     const showWarmup = ex.warmup && isPrimary;
@@ -1653,7 +1698,7 @@ function renderToday() {
     // Warmup section for primary lifts
     if (showWarmup) {
       // Use rpeHintKg as default if no manual input stored yet
-      const storedWarmupKg = log.exercises[ei].warmupKg || rpeHintKg || ex.scheme.kg || '';
+      const storedWarmupKg = log.exercises[ei]?.warmupKg || rpeHintKg || ex.scheme.kg || '';
       // Also pre-fill sets if not already done
       if (!log.exercises[ei].warmupKg && rpeHintKg) {
         log.exercises[ei].warmupKg = rpeHintKg;
@@ -1662,14 +1707,18 @@ function renderToday() {
         }
       }
       const warmups = calcWarmups(storedWarmupKg, ex.name);
+      const workingPlates = storedWarmupKg > 0 ? platesText(storedWarmupKg) : null;
       html += `<div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
           <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);flex-shrink:0;">Arbejdsvægt</div>
           <input class="set-input" type="number" inputmode="decimal" style="max-width:90px;font-size:16px;"
             value="${storedWarmupKg}" placeholder="${ex.scheme.kg || '—'}"
             oninput="updateWarmupKg(${ei}, this.value)" id="warmup-kg-${ei}">
-          <div style="font-size:11px;color:var(--muted);font-weight:300;">kg → opvarmning:</div>
+          <div style="font-size:11px;color:var(--muted);font-weight:300;">kg</div>
         </div>
+        ${workingPlates ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+          Per side: <span style="color:var(--text);font-weight:600;" id="working-plates-${ei}">${workingPlates}</span>
+        </div>` : `<div id="working-plates-${ei}" style="font-size:12px;color:var(--muted);margin-bottom:8px;"></div>`}
         <div id="warmup-sets-${ei}" style="display:flex;flex-wrap:wrap;gap:6px;">
           ${renderWarmupBadges(warmups)}
         </div>
@@ -1678,7 +1727,8 @@ function renderToday() {
 
     // Intra-session fatigue er allerede beregnet ovenfor (intraFatigueMod + displayKg)
     const showRPEInput = isPrimary || isBackdown;
-    const totalSets = logEx.sets.length;
+    const totalSets = logEx.sets?.length ?? 0;
+    if (totalSets === 0) return;
 
     html += `<div class="set-header-row" style="grid-template-columns:${showRPEInput ? '36px 1fr 1fr 52px 44px' : '36px 1fr 1fr 44px'};">
         <div class="set-col-label">Sæt</div>
@@ -1773,7 +1823,7 @@ function renderToday() {
 
     // Double progression for accessories — shows when all sets are done
     if (ex.type === 'acc' && ex.scheme.kg > 0) {
-      const doneSets = logEx.sets.filter(s => s.done && parseInt(s.reps) > 0);
+      const doneSets = (logEx.sets || []).filter(s => s.done && parseInt(s.reps) > 0);
       if (doneSets.length === totalSets && totalSets > 0) {
         const repParts = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
         const repFloor = parseInt(repParts[0]);
@@ -1812,29 +1862,72 @@ function renderToday() {
     }
     const noteKey = `note_${ex.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '_')}`;
     const programNote = ex.note || '';
-    const savedNote = aState().exerciseNotes?.[noteKey] !== undefined
-      ? aState().exerciseNotes[noteKey]
-      : programNote;
+    const userNote = aState().exerciseNotes?.[noteKey] ?? '';
+    const placeholder = programNote || `Tilføj en note til ${ex.name}...`;
     html += `<div style="padding:8px 16px 10px;border-top:1px solid var(--border);">
+      ${programNote && !userNote ? `<div style="font-size:11px;color:var(--muted);font-weight:300;
+        line-height:1.5;margin-bottom:4px;font-style:italic;">${programNote}</div>` : ''}
       <textarea
         id="note-${ei}"
-        rows="2"
-        placeholder="${programNote ? programNote : `Tilføj en note til ${ex.name}...`}"
+        rows="${userNote ? '2' : '1'}"
+        placeholder="${userNote ? '' : 'Tilføj en note...'}"
         oninput="saveExerciseNote('${noteKey}', this.value)"
         style="width:100%;background:transparent;border:none;border-radius:0;color:var(--muted);
                font-family:'Barlow',sans-serif;font-size:12px;font-weight:300;line-height:1.5;
                resize:none;outline:none;padding:0;"
-      >${savedNote}</textarea>
+      >${userNote}</textarea>
     </div>`;
     html += `</div>`;
   });
 
-  const allDone = log.exercises.every(ex => ex.sets.every(s => s.done));
+  const allDone = log.exercises.every(ex => (ex.sets || []).every(s => s.done));
   html += `<button class="finish-btn" onclick="finishWorkout()" ${!allDone && !alreadyDone ? '' : ''} id="finish-btn">
     ${alreadyDone ? '✓ Afsluttet — Næste dag →' : 'Afslut træning →'}
   </button>`;
 
   content.innerHTML = html;
+}
+
+function calcPlates(totalKg, barKg = 20) {
+  const kg = parseFloat(totalKg);
+  if (!kg || isNaN(kg)) return { plates: [], remainder: 0 };
+  const perSide = Math.round((kg - barKg) / 2 * 100) / 100;
+  if (perSide <= 0) return [];
+  const plates = [25, 20, 15, 10, 5, 2.5];
+  let remaining = perSide;
+  const result = [];
+  plates.forEach(p => {
+    if (remaining <= 0) return;
+    const count = Math.floor(Math.round(remaining / p * 100) / 100);
+    if (count > 0) {
+      result.push({ kg: p, count });
+      remaining = Math.round((remaining - p * count) * 100) / 100;
+    }
+  });
+  // If remainder > 0, weight is not achievable with standard plates
+  return { plates: result, remainder: Math.round(remaining * 100) / 100 };
+}
+
+function platesText(totalKg, barKg = 20) {
+  if (!totalKg || isNaN(parseFloat(totalKg))) return 'Kun stang';
+  const { plates, remainder } = calcPlates(parseFloat(totalKg), barKg);
+  if (!plates || !plates.length) return remainder > 0 ? `${remainder} kg ⚠️` : 'Kun stang';
+  const str = plates.map(p => `${p.count > 1 ? p.count+'×' : ''}${p.kg}`).join(' + ');
+  if (remainder > 0) return `${str}+${remainder} ⚠️`;
+  return str;
+}
+
+function platesHtml(totalKg, barKg = 20) {
+  if (!totalKg || isNaN(parseFloat(totalKg))) return `<span style="font-size:10px;color:var(--muted);">Kun stang</span>`;
+  const { plates } = calcPlates(parseFloat(totalKg), barKg);
+  if (!plates || !plates.length) return `<span style="font-size:10px;color:var(--muted);">Kun stang</span>`;
+  return plates.map(p =>
+    `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:4px;padding:2px 6px;color:var(--text);">
+      ${p.count > 1 ? p.count + '×' : ''}${p.kg}
+    </span>`
+  ).join(' ');
 }
 
 function renderWarmupBadges(warmups) {
@@ -1843,16 +1936,23 @@ function renderWarmupBadges(warmups) {
 
   let prevEquip = [];
   return warmups.map(w => {
-    // Find new equipment added at this set vs previous
     const newEquip = (w.equip || []).filter(e => !prevEquip.includes(e));
     prevEquip = w.equip || [];
     const equipHtml = newEquip.length
-      ? `<div style="font-size:10px;color:var(--gold);margin-top:3px;letter-spacing:0.5px;">${newEquip.join('  ')}</div>`
+      ? `<div style="font-size:10px;color:var(--gold);margin-top:3px;">${newEquip.join('  ')}</div>`
       : '';
-    return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;white-space:nowrap;${newEquip.length ? 'border-color:rgba(212,168,67,0.35);' : ''}">
-      <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;">${w.kg} kg</span>
-      <span style="color:var(--muted);"> × ${w.reps}</span>
-      <span style="font-size:10px;color:var(--muted);margin-left:3px;">${w.label}</span>
+    const platesStr = platesText(w.kg);
+    return `<div style="background:var(--surface2);border:1px solid var(--border);
+      border-radius:8px;padding:8px 12px;min-width:80px;
+      ${newEquip.length ? 'border-color:rgba(212,168,67,0.35);' : ''}">
+      <div style="display:flex;align-items:baseline;gap:6px;">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;">${w.kg} kg</span>
+        <span style="color:var(--muted);font-size:12px;">× ${w.reps}</span>
+        <span style="font-size:10px;color:var(--muted);">${w.label}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;">
+        Per side: <span style="color:var(--text);font-weight:500;">${platesStr}</span>
+      </div>
       ${equipHtml}
     </div>`;
   }).join('');
@@ -1861,13 +1961,19 @@ function renderWarmupBadges(warmups) {
 function updateWarmupKg(ei, val) {
   const key = logKey();
   const as = aState();
-  if (!as.logs[key]) return;
+  if (!as.logs[key]?.exercises[ei]) return;
   as.logs[key].exercises[ei].warmupKg = val;
   saveState();
   const exName = as.logs[key]?.exercises[ei]?.name || '';
   const warmups = calcWarmups(val, exName);
   const container = document.getElementById(`warmup-sets-${ei}`);
   if (container) container.innerHTML = renderWarmupBadges(warmups);
+  // Update working plates display
+  const platesEl = document.getElementById(`working-plates-${ei}`);
+  if (platesEl && parseFloat(val) > 0) {
+    platesEl.textContent = platesText(parseFloat(val));
+    platesEl.style.display = '';
+  }
   const exSets = as.logs[key]?.exercises[ei]?.sets;
   if (!exSets) return;
   exSets.forEach((s, si) => {
@@ -1890,6 +1996,7 @@ function saveExerciseNote(noteKey, val) {
 function updateSet(ei, si, field, val) {
   const key = logKey();
   const as = aState();
+  if (!as.logs[key]?.exercises[ei]?.sets[si]) return;
   as.logs[key].exercises[ei].sets[si][field] = val;
   if (field === 'kg' || field === 'reps') {
     as.logs[key].exercises[ei].sets[si].userEdited = true;
@@ -1900,8 +2007,10 @@ function updateSet(ei, si, field, val) {
 function toggleSet(ei, si) {
   const key = logKey();
   const as = aState();
+  if (!as.logs[key]?.exercises[ei]?.sets[si]) return;
   const s = as.logs[key].exercises[ei].sets[si];
   const ex = getExercises(CYCLE[getCycleDay()].id, getWeek())[ei];
+  if (!ex) return;
   if (!s.kg && ex.scheme.kg) s.kg = ex.scheme.kg;
   if (!s.reps) s.reps = ex.scheme.reps;
   s.done = !s.done;
@@ -1945,7 +2054,7 @@ function toggleSet(ei, si) {
     startTimer(duration, ex.name);
 
     // Autoreg: reps primær, RPE sekundær — trend-baseret
-    const totalSets = as.logs[key].exercises[ei].sets.length;
+    const totalSets = as.logs[key]?.exercises[ei]?.sets?.length ?? 0;
     const isLastSet = si === totalSets - 1;
     if (isPrimaryOrBD && isLastSet) {
       const currentKg   = parseFloat(s.kg) || ex.scheme.kg || 0;
@@ -2088,11 +2197,11 @@ function showResultScreen() {
   const confirmBtn = document.getElementById('modal-confirm-btn');
   confirmBtn.textContent = 'Start nyt program →';
   confirmBtn.style.background = 'var(--gold)';
-  confirmBtn.style.color = 'var(--ink)';
+  confirmBtn.style.color = 'var(--bg)';
   confirmBtn.onclick = () => startNewProgram(newSQ, newBP, newDL);
 
   document.getElementById('modal-confirm-btn').parentElement.innerHTML = `
-    <button class="modal-btn" style="background:var(--gold);color:var(--ink);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;flex:1;padding:13px;border-radius:8px;border:none;"
+    <button class="modal-btn" style="background:var(--gold);color:var(--bg);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;flex:1;padding:13px;border-radius:8px;border:none;"
       onclick="startNewProgram(${newSQ},${newBP},${newDL})">Start nyt program →</button>`;
 
   modal.classList.add('open');
@@ -2140,6 +2249,11 @@ function renderProgram() {
   // ── Top: current position + block info ───────────────────────────────────
   const blkLabel = ['','AKKUMULATION','INTENSIFIKATION','REALISERING'][getBlock(currentWeek)];
   const blkCls   = ['','b1','b2','b3'][getBlock(currentWeek)];
+  const blocks = [
+    { b:1, label:'AKKUMULATION',    cls:'b1', weeks:[1,2,3,4]  },
+    { b:2, label:'INTENSIFIKATION', cls:'b2', weeks:[5,6,7,8]  },
+    { b:3, label:'REALISERING',     cls:'b3', weeks:[9,10,11,12] },
+  ];
   let html = `
     <div style="padding:16px 18px 0;">
       <div class="prog-block-header ${blkCls}" style="margin:0 0 12px;">
@@ -2200,10 +2314,12 @@ function renderProgram() {
           </span>` : ''}
         </div>`;
       }
-      // Accessories
+      // Accessories — compact wrapped list
       if (accs.length) {
-        html += `<div style="font-size:11px;color:var(--muted);line-height:1.7;">
-          ${accs.map(a => `<span style="margin-right:8px;">${a.name}</span>`).join('')}
+        html += `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+          ${accs.map(a => `<span style="font-size:10px;color:var(--muted);
+            background:var(--surface2);border-radius:4px;padding:2px 6px;
+            white-space:nowrap;">${a.name}</span>`).join('')}
         </div>`;
       }
     }
@@ -2218,31 +2334,43 @@ function renderProgram() {
       12-UGERS PROGRAM
     </div>`;
 
-  const blocks = [
-    { b:1, label:'AKKUMULATION',   cls:'b1', weeks:[1,2,3,4]  },
-    { b:2, label:'INTENSIFIKATION', cls:'b2', weeks:[5,6,7,8]  },
-    { b:3, label:'REALISERING',    cls:'b3', weeks:[9,10,11,12] },
-  ];
+  const weekInfo = {
+    1:  { tag:'RPE 6–7', sub:'5–7 reps' },
+    2:  { tag:'RPE 6–7', sub:'5–7 reps' },
+    3:  { tag:'RPE 7–8', sub:'5–7 reps' },
+    4:  { tag:'DELOAD',  sub:'Reduceret' },
+    5:  { tag:'RPE 7–8', sub:'3–5 reps' },
+    6:  { tag:'RPE 8',   sub:'3–5 reps' },
+    7:  { tag:'RPE 8–9', sub:'3–5 reps' },
+    8:  { tag:'DELOAD',  sub:'Reduceret' },
+    9:  { tag:'RPE 8–9', sub:'2–4 reps' },
+    10: { tag:'RPE 9',   sub:'1–3 reps' },
+    11: { tag:'RPE 9–10',sub:'1–2 reps' },
+    12: { tag:'1RM TEST',sub:'Max' },
+  };
 
   blocks.forEach(blk => {
-    html += `<div class="prog-block-header ${blk.cls}" style="margin-bottom:6px;">
+    html += `<div class="prog-block-header ${blk.cls}" style="margin-bottom:8px;">
       BLOK ${blk.b} — ${blk.label}
     </div>`;
-    html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">`;
+    html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;">`;
     blk.weeks.forEach(w => {
       const isCur = w === currentWeek;
       const weekStart = (w-1)*7, weekEnd = w*7;
       const logged = aState().completedDays.filter(d => d >= weekStart && d < weekEnd).length;
       const isDl = isDeload(w), isTst = isTest(w);
-      const tag = isTst ? '1RM' : isDl ? 'DELOAD' : blockLabel(w).split(' ').pop();
+      const info = weekInfo[w] || { tag:'', sub:'' };
       html += `<div onclick="jumpToWeek(${w})" style="
         background:${isCur ? 'rgba(212,168,67,0.12)' : logged > 0 ? 'rgba(61,184,122,0.06)' : 'var(--surface)'};
         border:1px solid ${isCur ? 'var(--gold)' : logged > 0 ? 'rgba(61,184,122,0.25)' : 'var(--border)'};
-        border-radius:8px;padding:8px 10px;cursor:pointer;text-align:center;">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;
+        border-radius:10px;padding:10px 6px;cursor:pointer;text-align:center;
+        -webkit-tap-highlight-color:transparent;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;
           color:${isCur ? 'var(--gold)' : 'var(--text)'};">${w}</div>
-        <div style="font-size:9px;color:var(--muted);letter-spacing:0.5px;">${tag}</div>
-        ${logged > 0 ? `<div style="font-size:9px;color:var(--green);">${logged}d ✓</div>` : ''}
+        <div style="font-size:9px;color:${isDl||isTst ? 'var(--dl)' : 'var(--muted)'};
+          letter-spacing:0.3px;margin-top:2px;line-height:1.3;">${info.tag}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:1px;">${info.sub}</div>
+        ${logged > 0 ? `<div style="font-size:9px;color:var(--green);margin-top:3px;">${logged}d ✓</div>` : ''}
       </div>`;
     });
     html += `</div>`;
@@ -2365,6 +2493,7 @@ function drawAccChart() {
   empty.style.display = 'none';
 
   const wrap = canvas.parentElement;
+  if (!wrap || wrap.clientWidth === 0) return;
   canvas.width = wrap.clientWidth;
   canvas.height = 120;
   const ctx = canvas.getContext('2d');
@@ -2617,7 +2746,7 @@ function renderSettings() {
   const btnPartner = document.getElementById('btn-partner');
   if (btnMain) {
     btnMain.style.background = !isPartner ? 'var(--gold)' : 'var(--surface2)';
-    btnMain.style.color = !isPartner ? 'var(--ink)' : 'var(--muted)';
+    btnMain.style.color = !isPartner ? 'var(--bg)' : 'var(--muted)';
     btnPartner.style.background = isPartner ? '#d4688a' : 'var(--surface2)';
     btnPartner.style.color = isPartner ? 'white' : 'var(--muted)';
   }
@@ -2720,7 +2849,8 @@ function updateAutoregBar(ei) {
   if (!log?.exercises[ei]) return;
 
   const exLog = log.exercises[ei];
-  const totalSets = exLog.sets.length;
+  const totalSets = exLog.sets?.length ?? 0;
+  if (totalSets === 0) return;
   const lastSet = exLog.sets[totalSets - 1];
   if (!lastSet?.done) return;
 
@@ -2807,6 +2937,7 @@ function drawBodyweightChart() {
   }
   canvas.style.display = 'block'; empty.style.display = 'none';
   const wrap = canvas.parentElement;
+  if (!wrap || wrap.clientWidth === 0) return;
   canvas.width = wrap.clientWidth; canvas.height = 120;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -3527,6 +3658,7 @@ function drawChart() {
   empty.style.display = 'none';
 
   const wrap = canvas.parentElement;
+  if (!wrap || wrap.clientWidth === 0) return;
   canvas.width = wrap.clientWidth;
   canvas.height = 140;
   const ctx = canvas.getContext('2d');
