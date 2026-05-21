@@ -637,19 +637,18 @@ html, body {
     <div class="settings-card">
       <div class="settings-row">
         <span class="settings-row-label">Uge</span>
-        <div class="week-selector">
-          <button class="week-btn" onclick="adjustWeek(-1)">−</button>
-          <span class="settings-row-val" id="setting-week">1</span>
-          <button class="week-btn" onclick="adjustWeek(1)">+</button>
-        </div>
+        <span class="settings-row-val" id="setting-week">1</span>
       </div>
       <div class="settings-row">
         <span class="settings-row-label">Dag i cyklus</span>
-        <div class="week-selector">
-          <button class="week-btn" onclick="adjustDay(-1)">−</button>
-          <span class="settings-row-val" id="setting-day">1</span>
-          <button class="week-btn" onclick="adjustDay(1)">+</button>
-        </div>
+        <span class="settings-row-val" id="setting-day">1</span>
+      </div>
+      <div class="settings-row">
+        <span class="settings-row-label" style="color:var(--muted);font-size:12px;">Missede en dag?</span>
+        <button onclick="skipDay()" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;
+          font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:6px 12px;
+          border-radius:6px;border:1px solid var(--border);background:none;
+          color:var(--muted);cursor:pointer;">Spring dag over →</button>
       </div>
     </div>
 
@@ -803,6 +802,30 @@ function isDeload(week) {
   } catch(e) { return false; }
 }
 function isTest(week) { return week === 12; }
+
+// Peak week day structure — overrides normal 8-day cycle for week 12
+// Days 77-83 (week 12, days 0-6)
+const PEAK_WEEK = [
+  { id:'peak_sq',   name:'Squat — Solo Max',     short:'SQ MAX',  type:'workout', lift:'squat'   },
+  { id:'peak_rest1',name:'Pause',                short:'Pause',   type:'rest'                    },
+  { id:'peak_dl',   name:'Deadlift — Solo Max',  short:'DL MAX',  type:'workout', lift:'deadlift'},
+  { id:'peak_rest2',name:'Pause',                short:'Pause',   type:'rest'                    },
+  { id:'peak_bp',   name:'Bench — Solo Max',     short:'BP MAX',  type:'workout', lift:'bench'   },
+  { id:'peak_rest3',name:'Pause',                short:'Pause',   type:'rest'                    },
+  { id:'peak_sbd',  name:'SBD — Konkurrence',   short:'SBD',     type:'workout', lift:'sbd'     },
+];
+
+function getPeakDay() {
+  // Returns peak day index (0-6) if in week 12
+  if (!isTest(getWeek())) return null;
+  const weekStart = 11 * 7; // week 12 starts at day 77
+  const dayInWeek = aState().totalDays - weekStart;
+  return Math.min(6, Math.max(0, dayInWeek));
+}
+
+function isPeakWeek() {
+  return isTest(getWeek());
+}
 
 function triggerAutoDeload() {
   const as = aState();
@@ -1292,7 +1315,15 @@ if (!partnerState.restScore) partnerState.restScore = {};
 if (!state.sleepLog) state.sleepLog = {};
 if (!partnerState.sleepLog) partnerState.sleepLog = {};
 if (!state.bodyweight) state.bodyweight = {};
-// Lock programStart1RM if not set — uses current oneRM as baseline
+if (!state.peakAttempts) state.peakAttempts = {};
+if (!state.peakResults) state.peakResults = {};
+// Auto-set start date if missing — back-calculate from totalDays
+if (!state.programStartDate) {
+  const d = new Date();
+  d.setDate(d.getDate() - state.totalDays);
+  state.programStartDate = d.toISOString().slice(0,10);
+  saveState();
+}
 if (!state.programStart1RM) {
   state.programStart1RM = { ...state.oneRM };
   saveState();
@@ -1357,6 +1388,19 @@ function saveState() {
 function aState() { return state.profile === 'partner' ? partnerState : state; }
 
 // Derived values — always from active state's totalDays
+// ── CALENDAR-BASED DAY TRACKING ──────────────────────────────────────────────
+// Program advances ONLY when you finish a workout — never automatically.
+// Calendar is used for context (what day of week it is) and displaying
+// the current date, but does NOT drive program progression.
+
+function syncProgramDay() {
+  // No-op — day advancement is training-driven, not calendar-driven
+}
+
+function getTodayDateStr() {
+  return new Date().toLocaleDateString('da-DK', { weekday:'long', day:'numeric', month:'long' });
+}
+
 function getWeek()     { return Math.min(12, Math.floor(aState().totalDays / 7) + 1); }
 function getCycleDay() { return aState().totalDays % 8; }
 function logKey()      { return `day${aState().totalDays}`; }
@@ -1382,10 +1426,20 @@ function navigate(id, btn) {
 
 // ─── TODAY ───────────────────────────────────────────────────────────────────
 function renderToday() {
+  syncProgramDay(); // sync calendar-based day first
   const week = getWeek();
-  const cycleDay = getCycleDay();
-  const day = CYCLE[cycleDay];
-  const as = aState(); // single declaration at top
+  const as = aState();
+
+  // Week 12: use PEAK_WEEK structure instead of normal cycle
+  let day, cycleDay;
+  if (isPeakWeek()) {
+    const peakIdx = getPeakDay();
+    day = PEAK_WEEK[peakIdx];
+    cycleDay = peakIdx;
+  } else {
+    cycleDay = getCycleDay();
+    day = CYCLE[cycleDay];
+  }
 
   // Date
   document.getElementById('today-date').textContent =
@@ -1539,34 +1593,40 @@ function renderToday() {
   </div>`;
 
   if (day.type === 'rest') {
-    // Next day preview
-    const nextDayNum = (as.totalDays + 1) % 8;
-    const nextDay = CYCLE[nextDayNum];
     let nextPreviewHtml = '';
-    if (nextDay && nextDay.type === 'workout') {
-      const nextWeek = Math.min(12, Math.floor((as.totalDays + 1) / 7) + 1);
-      const nextExercises = getExercises(nextDay.id, nextWeek);
-      const primary = nextExercises.find(e => e.type === 'primary');
-      const accNames = nextExercises
-        .filter(e => e.type === 'acc')
-        .map(e => e.name)
-        .slice(0, 4);
-      nextPreviewHtml = `
-        <div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:14px 16px;border-left:3px solid var(--gold);">
+    if (isPeakWeek()) {
+      const nextIdx = Math.min(6, cycleDay + 1);
+      const nextDay = PEAK_WEEK[nextIdx];
+      if (nextDay?.type === 'workout') {
+        nextPreviewHtml = `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:14px 16px;border-left:3px solid var(--gold);">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:6px;">I MORGEN</div>
+          <div style="font-size:16px;font-weight:600;">${nextDay.name}</div>
+        </div>`;
+      }
+    } else {
+      const nextDayNum = (as.totalDays + 1) % 8;
+      const nextDay = CYCLE[nextDayNum];
+      if (nextDay?.type === 'workout') {
+        const nextWeek = Math.min(12, Math.floor((as.totalDays + 1) / 7) + 1);
+        const nextExercises = getExercises(nextDay.id, nextWeek);
+        const primary = nextExercises.find(e => e.type === 'primary');
+        const accNames = nextExercises.filter(e => e.type === 'acc').map(e => e.name).slice(0, 4);
+        nextPreviewHtml = `<div style="margin:0 18px 10px;background:var(--surface);border-radius:var(--radius);padding:14px 16px;border-left:3px solid var(--gold);">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">I MORGEN — ${nextDay.name.toUpperCase()}</div>
           ${primary ? `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${primary.name}</div>` : ''}
-          <div style="font-size:12px;color:var(--muted);line-height:1.6;">${accNames.join(' · ')}${accNames.length < nextExercises.filter(e=>e.type==='acc').length ? ' · ...' : ''}</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6;">${accNames.join(' · ')}</div>
         </div>`;
+      }
     }
-
-    html += `<div class="rest-card">
-      <div class="rest-icon">💤</div>
-      <div class="rest-title">Pausedag</div>
-      <div class="rest-sub">Aktiv restitution — let gang, mobilitet eller foam roll.</div>
-    </div>
-    ${nextPreviewHtml}`;
+    html += `<div class="rest-card"><div class="rest-icon">💤</div><div class="rest-title">Pausedag</div><div class="rest-sub">Aktiv restitution — let gang, mobilitet eller foam roll.</div></div>${nextPreviewHtml}`;
     html += `<button class="finish-btn" onclick="advanceDay()" style="background:var(--gold)">Næste dag →</button>`;
     content.innerHTML = html;
+    return;
+  }
+
+  // ── PEAK WEEK WORKOUT DAYS ───────────────────────────────────────────────
+  if (isPeakWeek() && day.lift) {
+    content.innerHTML = renderPeakDay(day, week);
     return;
   }
 
@@ -1764,15 +1824,22 @@ function renderToday() {
     });
 
     // Show autoreg suggestion after last set is completed on primary lifts
-    const lastSet = logEx.sets[totalSets - 1];
+    const lastSet = logEx.sets?.[totalSets - 1];
     if (showRPEInput && lastSet?.done) {
       const repParts  = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
       const repFloor  = parseInt(repParts[0]);
       const repCeil   = repParts.length > 1 ? parseInt(repParts[1]) : repFloor;
       const repMid    = Math.round((repFloor + repCeil) / 2);
-      const actualReps = parseInt(lastSet.reps) || 0;
-      const actualRPE  = lastSet.rpe ? parseFloat(lastSet.rpe) : null;
-      const currentKg  = parseFloat(lastSet.kg) || ex.scheme.kg || 0;
+
+      // Use best e1RM set across all done sets
+      const doneSets = (logEx.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+      const bestSet = doneSets.length ? doneSets.reduce((best, s) =>
+        epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(best.kg), parseInt(best.reps)) ? s : best
+      ) : lastSet;
+
+      const actualReps = parseInt(bestSet?.reps) || 0;
+      const actualRPE  = lastSet.rpe ? parseFloat(lastSet.rpe) : null; // RPE from last set
+      const currentKg  = parseFloat(bestSet?.kg) || ex.scheme.kg || 0;
 
       const expectedRPE = getExpectedRPE(ex.type, week);
       const rpeParts2   = expectedRPE.val.split('–');
@@ -2057,9 +2124,19 @@ function toggleSet(ei, si) {
     const totalSets = as.logs[key]?.exercises[ei]?.sets?.length ?? 0;
     const isLastSet = si === totalSets - 1;
     if (isPrimaryOrBD && isLastSet) {
-      const currentKg   = parseFloat(s.kg) || ex.scheme.kg || 0;
-      const actualReps  = parseInt(s.reps) || 0;
-      const actualRPE   = s.rpe ? parseFloat(s.rpe) : null;
+      // Use best e1RM across ALL done sets — more robust than just last set
+      const doneSets = (as.logs[key]?.exercises[ei]?.sets || []).filter(
+        s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+      if (!doneSets.length) return;
+
+      // Best e1RM set = highest estimated 1RM
+      const bestSet = doneSets.reduce((best, s) =>
+        epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(best.kg), parseInt(best.reps)) ? s : best
+      );
+      const currentKg  = parseFloat(bestSet.kg);
+      const actualReps = parseInt(bestSet.reps);
+      // RPE still from last set — most fatigued signal
+      const actualRPE  = s.rpe ? parseFloat(s.rpe) : null;
 
       const repParts = (ex.scheme.repsRange || ex.scheme.reps.toString()).split('–');
       const repFloor = parseInt(repParts[0]);
@@ -2115,96 +2192,130 @@ function toggleSet(ei, si) {
   }
 }
 
+function advanceDay() {
+  const as = aState();
+  const maxDays = 12 * 7;
+  if (as.totalDays < maxDays - 1) as.totalDays++;
+  saveState();
+  renderToday();
+  const sw = document.getElementById('setting-week');
+  const sd = document.getElementById('setting-day');
+  if (sw) sw.textContent = getWeek();
+  if (sd) sd.textContent = getCycleDay() + 1;
+}
+
+// Expose peak week functions to window for onclick handlers in innerHTML
+window.logPeakResult = logPeakResult;
+window.finishProgram = finishProgram;
+window.saveAttemptKg = saveAttemptKg;
+window.advanceDay = advanceDay;
+window.exportProgramData = exportProgramData;
+window.startNewProgram = startNewProgram;
+
 function finishWorkout() {
+  const as = aState();
+
+  // Mark day as completed
+  if (!as.completedDays.includes(as.totalDays)) {
+    as.completedDays.push(as.totalDays);
+  }
+  saveState();
+
+  // Peak week is handled by renderPeakDay buttons — not here
+  if (isPeakWeek()) {
+    advanceDay();
+    return;
+  }
+
+  // Partner profile — just advance
+  if (state.profile === 'partner') {
+    advanceDay();
+    return;
+  }
+
+  advanceDay();
+}
+
+function finishProgram() {
+  // Called from SBD competition day finish button
   const as = aState();
   if (!as.completedDays.includes(as.totalDays)) {
     as.completedDays.push(as.totalDays);
   }
   saveState();
 
-  // 1RM test only applies to main profile
-  if (state.profile === 'partner') { advanceDay(); return; }
+  // Collect best results from peak week
+  const getBestKg = (lift) => {
+    const results = [1,2,3]
+      .map(i => ({ kg: getAttemptKg(lift, i), success: as.peakResults?.[`${lift}_${i}`]?.success }))
+      .filter(r => r.success && r.kg > 0);
+    return results.length ? Math.max(...results.map(r => r.kg)) : null;
+  };
 
-  const week = getWeek();
-  const dayId = CYCLE[getCycleDay()].id;
-  if (week === 12) {
-    const liftMap = { cst1: 'bp', low1: 'sq', bb1: 'dl' };
-    const liftKey = liftMap[dayId];
-    if (liftKey) {
-      const log = as.logs[logKey()];
-      const doneSets = log?.exercises[0]?.sets?.filter(s => s.done && parseFloat(s.kg) > 0) || [];
-      if (doneSets.length > 0) {
-        const newRM = Math.max(...doneSets.map(s => parseFloat(s.kg)));
-        state.pending1RM = state.pending1RM || {};
-        state.pending1RM[liftKey] = newRM;
-        saveState();
-      }
+  const newSQ = getBestKg('squat') || getSQ();
+  const newBP = getBestKg('bench') || getBP();
+  const newDL = getBestKg('deadlift') || getDL();
 
-      // If all 3 SBD days in week 12 are done, show results
-      const allTestDays = ['cst1','low1','bb1'];
-      const completedTestDayIds = state.completedDays
-        .filter(d => Math.floor(d / 7) + 1 === 12)
-        .map(d => CYCLE[d % 8].id)
-        .filter(id => allTestDays.includes(id));
+  // Auto-export before showing result screen
+  exportProgramData();
 
-      const uniqueCompleted = [...new Set(completedTestDayIds)];
-      if (uniqueCompleted.length === 3 || (state.pending1RM && Object.keys(state.pending1RM).length === 3)) {
-        showResultScreen();
-        return;
-      }
-    }
-  }
-
-  advanceDay();
+  showResultScreen(newSQ, newBP, newDL);
 }
 
-function showResultScreen() {
-  const p = state.pending1RM || {};
-  const prev = { sq: getSQ(), bp: getBP(), dl: getDL() };
+function showResultScreen(newSQ, newBP, newDL) {
+  const startRM = state.programStart1RM || { sq: getSQ(), bp: getBP(), dl: getDL() };
 
-  // Use logged values or fall back to previous
-  const newSQ = p.sq || prev.sq;
-  const newBP = p.bp || prev.bp;
-  const newDL = p.dl || prev.dl;
-
+  function diff(prev, next) {
+    const d = next - prev;
+    return (d >= 0 ? '+' : '') + d.toFixed(1) + ' kg';
+  }
   function pct(prev, next) {
     const d = ((next - prev) / prev * 100);
     return (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
   }
-  function color(prev, next) { return next >= prev ? 'var(--green)' : 'var(--dl)'; }
+  function col(prev, next) { return next >= prev ? 'var(--green)' : 'var(--dl)'; }
 
-  const modal = document.getElementById('modal');
+  const lifts = [
+    { name:'Squat',    prev: startRM.sq, next: newSQ, color:'var(--sq)' },
+    { name:'Bench',    prev: startRM.bp, next: newBP, color:'var(--bp)' },
+    { name:'Deadlift', prev: startRM.dl, next: newDL, color:'var(--dl)' },
+  ];
+
   document.getElementById('modal-title').innerHTML = '🏆 Program Afsluttet';
   document.getElementById('modal-body').innerHTML = `
-    <div style="margin-bottom:16px;font-size:13px;color:var(--muted);line-height:1.6;">
-      Her er dine nye 1RM-tal. Disse gemmes automatisk og bruges som udgangspunkt for dit næste 12-ugers program.
+    <div style="margin-bottom:14px;font-size:13px;color:var(--muted);line-height:1.6;">
+      12 uger gennemført. Her er din progression fra start til slut.
+      Data er eksporteret automatisk.
     </div>
-    <div style="display:grid;gap:10px;margin-bottom:16px;">
-      ${[
-        { name:'Squat', prev: prev.sq, next: newSQ, color: 'var(--sq)' },
-        { name:'Bench', prev: prev.bp, next: newBP, color: 'var(--bp)' },
-        { name:'Deadlift', prev: prev.dl, next: newDL, color: 'var(--dl)' },
-      ].map(l => `
-        <div style="background:var(--surface2);border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:${l.color};">${l.name}</span>
+    <div style="display:grid;gap:8px;margin-bottom:16px;">
+      ${lifts.map(l => `
+        <div style="background:var(--surface2);border-radius:8px;padding:12px 14px;
+          display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:16px;
+            font-weight:700;color:${l.color};">${l.name}</span>
           <div style="text-align:right;">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;">${l.next} kg</div>
-            <div style="font-size:11px;color:${color(l.prev, l.next)};">${l.prev} kg → ${pct(l.prev, l.next)}</div>
+            <div style="font-size:11px;color:${col(l.prev, l.next)};">
+              ${l.prev} kg → ${diff(l.prev, l.next)} (${pct(l.prev, l.next)})
+            </div>
           </div>
         </div>`).join('')}
     </div>`;
 
-  const confirmBtn = document.getElementById('modal-confirm-btn');
-  confirmBtn.textContent = 'Start nyt program →';
-  confirmBtn.style.background = 'var(--gold)';
-  confirmBtn.style.color = 'var(--bg)';
-  confirmBtn.onclick = () => startNewProgram(newSQ, newBP, newDL);
-
   document.getElementById('modal-confirm-btn').parentElement.innerHTML = `
-    <button class="modal-btn" style="background:var(--gold);color:var(--bg);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;flex:1;padding:13px;border-radius:8px;border:none;"
-      onclick="startNewProgram(${newSQ},${newBP},${newDL})">Start nyt program →</button>`;
+    <button class="modal-btn" style="background:var(--gold);color:var(--bg);
+      font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
+      letter-spacing:1px;text-transform:uppercase;cursor:pointer;flex:1;
+      padding:13px;border-radius:8px;border:none;"
+      onclick="startNewProgram(${newSQ},${newBP},${newDL})">
+      Start nyt program →
+    </button>
+    <button class="modal-btn modal-cancel" style="flex:0.5;"
+      onclick="exportProgramData()">
+      📁 Eksporter igen
+    </button>`;
 
-  modal.classList.add('open');
+  document.getElementById('modal').classList.add('open');
 }
 
 function startNewProgram(newSQ, newBP, newDL) {
@@ -2225,21 +2336,14 @@ function startNewProgram(newSQ, newBP, newDL) {
   state.restScore = {};
   state.sleepLog = {};
   state.autoDeloadTriggered = null;
+  state.peakAttempts = {};
+  state.peakResults = {};
+  state.programStartDate = new Date().toISOString().slice(0,10); // today
 
   saveState();
   closeModal();
   renderToday();
   renderSettings();
-}
-
-function advanceDay() {
-  const as = aState();
-  const maxDays = 12 * 7;
-  if (as.totalDays < maxDays - 1) as.totalDays++;
-  saveState();
-  renderToday();
-  document.getElementById('setting-week').textContent = getWeek();
-  document.getElementById('setting-day').textContent = getCycleDay() + 1;
 }
 
 function renderProgram() {
@@ -2738,6 +2842,24 @@ function update1RM(key, val) {
   if (el) el.textContent = (v * 1.0625).toFixed(2) + ' kg';
 }
 
+function updateStartDate(dateStr) {
+  const as = aState();
+  as.programStartDate = dateStr;
+  saveState();
+  renderToday();
+  renderSettings();
+  showToast(`Startdato sat til ${dateStr}`);
+}
+
+function skipDay() {
+  showModal(
+    'Spring dag over',
+    `Dette springer dag ${getCycleDay() + 1} (${CYCLE[getCycleDay()].name}) over og går til næste dag. Brug det hvis du missede en træning.`,
+    () => { advanceDay(); closeModal(); renderSettings(); },
+    false
+  );
+}
+
 function renderSettings() {
   const isPartner = state.profile === 'partner';
 
@@ -2864,9 +2986,15 @@ function updateAutoregBar(ei) {
   const repFloor = parseInt(repParts[0]);
   const repCeil  = repParts.length > 1 ? parseInt(repParts[1]) : repFloor;
   const repMid   = Math.round((repFloor + repCeil) / 2);
-  const actualReps = parseInt(lastSet.reps) || 0;
+
+  // Best e1RM across all done sets, RPE from last set
+  const doneSets = (exLog.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+  const bestSet = doneSets.length ? doneSets.reduce((best, s) =>
+    epley(parseFloat(s.kg), parseInt(s.reps)) > epley(parseFloat(best.kg), parseInt(best.reps)) ? s : best
+  ) : lastSet;
+  const actualReps = parseInt(bestSet?.reps) || 0;
   const actualRPE  = lastSet.rpe ? parseFloat(lastSet.rpe) : null;
-  const currentKg  = parseFloat(lastSet.kg) || ex.scheme.kg || 0;
+  const currentKg  = parseFloat(bestSet?.kg) || ex.scheme.kg || 0;
 
   const expectedRPE = getExpectedRPE(ex.type, week);
   const rpeParts2 = expectedRPE.val.split('–');
@@ -3093,6 +3221,211 @@ function renderBlockProgression() {
 
   if (!html) html = `<div style="font-size:12px;color:var(--muted);padding:8px 0;">Log mindst ét primært løft for at se progression.</div>`;
   wrap.innerHTML = html;
+}
+
+// ─── PEAK WEEK RENDERING ─────────────────────────────────────────────────────
+
+function renderPeakDay(day, week) {
+  const as = aState();
+  const isSBD = day.lift === 'sbd';
+  const lifts = isSBD
+    ? [
+        { lift:'squat',    name:'Squat',           badge:'sq', oneRM: getSQ() },
+        { lift:'bench',    name:'Bench Press',      badge:'bp', oneRM: getBP() },
+        { lift:'deadlift', name:'Deadlift (Conv.)', badge:'dl', oneRM: getDL() },
+      ]
+    : [{ lift: day.lift,
+         name: day.lift==='squat' ? 'Squat' : day.lift==='bench' ? 'Bench Press' : 'Deadlift (Conv.)',
+         badge: day.lift==='squat' ? 'sq' : day.lift==='bench' ? 'bp' : 'dl',
+         oneRM: day.lift==='squat' ? getSQ() : day.lift==='bench' ? getBP() : getDL() }];
+
+  const liftColor = { sq:'var(--sq)', bp:'var(--bp)', dl:'var(--dl)' };
+
+  let html = '';
+
+  // Header
+  html += `<div style="padding:20px 18px 12px;display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:4px;">UGE 12 — ${isSBD ? 'KONKURRENCE' : 'SOLO MAX'}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;text-transform:uppercase;line-height:1;">${day.name}</div>
+    </div>
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;border:1px solid var(--sq);color:var(--sq);">PEAK</span>
+  </div>`;
+
+  if (isSBD) {
+    html += `<div style="margin:0 18px 12px;background:rgba(212,168,67,0.06);border:1px solid rgba(212,168,67,0.2);border-radius:var(--radius);padding:12px 14px;font-size:12px;color:var(--muted);line-height:1.6;">
+      🏆 Konkurrencerækkefølge: Squat → Bench → Deadlift. 8–10 min. pause mellem forsøg. Mål: kom tæt på dine solo-max.
+    </div>`;
+  }
+
+  lifts.forEach(({ lift, name, badge, oneRM }) => {
+    const attempts = calcAttempts(oneRM);
+    const col = liftColor[badge] || 'var(--text)';
+
+    html += `<div class="ex-card">
+      <div class="ex-header">
+        <div>
+          <div class="ex-name">${name}</div>
+          <div class="ex-target" style="color:var(--muted);">1RM basis: ${oneRM} kg · Forsøg beregnet automatisk</div>
+        </div>
+        <div class="ex-badge badge-${badge}">${badge.toUpperCase()}</div>
+      </div>`;
+
+    // Attempt rows
+    attempts.forEach((att, i) => {
+      const savedKg = getAttemptKg(lift, i+1) || att.kg;
+      const done = as.peakResults?.[`${lift}_${i+1}`];
+      const success = done?.success;
+      html += `<div style="display:grid;grid-template-columns:1fr 100px 80px 48px;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;min-height:56px;${done ? (success?'background:rgba(61,184,122,0.06)':'background:rgba(224,92,74,0.06)') : ''}">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${col};">${att.label}</div>
+          <div style="font-size:11px;color:var(--muted);">${att.note}</div>
+        </div>
+        <input type="number" inputmode="decimal" step="2.5" value="${savedKg}"
+          onchange="saveAttemptKg('${lift}',${i+1},this.value)"
+          style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+                 color:var(--text);font-family:'Barlow Condensed',sans-serif;
+                 font-size:max(16px,16px);font-weight:700;padding:8px;text-align:center;
+                 width:100%;-webkit-appearance:none;appearance:none;">
+        <div style="font-size:11px;color:var(--muted);text-align:center;">
+          ${platesText(savedKg)}<br>per side
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <button onclick="logPeakResult('${lift}',${i+1},true)" style="
+            width:44px;height:22px;border-radius:4px;border:none;cursor:pointer;font-size:14px;
+            background:${done&&success?'var(--green)':'var(--surface2)'};color:${done&&success?'white':'var(--muted)'};">✓</button>
+          <button onclick="logPeakResult('${lift}',${i+1},false)" style="
+            width:44px;height:22px;border-radius:4px;border:none;cursor:pointer;font-size:14px;
+            background:${done&&!success?'var(--dl)':'var(--surface2)'};color:${done&&!success?'white':'var(--muted)'};">✗</button>
+        </div>
+      </div>`;
+    });
+
+    // Best result
+    const results = [1,2,3].map(i => ({
+      i, data: as.peakResults?.[`${lift}_${i}`],
+      kg: getAttemptKg(lift, i) || attempts[i-1].kg
+    })).filter(r => r.data?.success);
+    if (results.length) {
+      const best = results[results.length-1];
+      const e1rm = epley(best.kg, 1).toFixed(1);
+      const startRM = state.programStart1RM?.[lift==='squat'?'sq':lift==='bench'?'bp':'dl'] || oneRM;
+      const gain = (best.kg - startRM).toFixed(1);
+      html += `<div style="padding:10px 16px;background:rgba(61,184,122,0.06);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;color:var(--green);font-weight:600;">✓ ${best.kg} kg godkendt</span>
+        <span style="font-size:12px;color:var(--muted);">+${gain} kg fra start · e1RM ~${e1rm} kg</span>
+      </div>`;
+    }
+    html += `</div>`;
+  });
+
+  // Finish button
+  const isComplete = lifts.every(({ lift }) =>
+    [1,2,3].some(i => as.peakResults?.[`${lift}_${i}`])
+  );
+  html += `<button class="finish-btn" onclick="${isComplete ? (isSBD ? 'finishProgram()' : 'advanceDay()') : 'advanceDay()'}" style="background:${isSBD?'var(--gold)':'var(--green)'};">
+    ${isSBD ? '🏆 Afslut program & eksporter →' : 'Næste dag →'}
+  </button>`;
+
+  return html;
+}
+
+function logPeakResult(lift, attemptNum, success) {
+  const as = aState();
+  if (!as.peakResults) as.peakResults = {};
+  const kg = getAttemptKg(lift, attemptNum) || 0;
+  as.peakResults[`${lift}_${attemptNum}`] = { success, kg };
+  saveState();
+  // Re-render peak day
+  const peakIdx = getPeakDay();
+  const day = PEAK_WEEK[peakIdx];
+  document.getElementById('today-content').innerHTML = renderPeakDay(day, getWeek());
+}
+
+// ─── COMPETITION ATTEMPTS ────────────────────────────────────────────────────
+
+function calcAttempts(oneRM) {
+  return [
+    { pct: 0.90, kg: r(oneRM * 0.90), label: '1. forsøg', note: 'Skal sidde — ingen fejl' },
+    { pct: 0.97, kg: r(oneRM * 0.97), label: '2. forsøg', note: 'Mål-vægt' },
+    { pct: 1.03, kg: r(oneRM * 1.03), label: '3. forsøg', note: 'PR-forsøg' },
+  ];
+}
+
+function saveAttemptKg(lift, attemptNum, kg) {
+  const as = aState();
+  if (!as.peakAttempts) as.peakAttempts = {};
+  as.peakAttempts[`${lift}_${attemptNum}`] = parseFloat(kg);
+  saveState();
+}
+
+function getAttemptKg(lift, attemptNum) {
+  return aState().peakAttempts?.[`${lift}_${attemptNum}`] || null;
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+
+function exportProgramData() {
+  const as = aState();
+
+  // Build per-session summary for easy analysis
+  const sessions = as.completedDays.sort((a,b) => a-b).map(d => {
+    const log = as.logs[`day${d}`];
+    const dayInfo = isPeakWeek() ? null : CYCLE[d % 8];
+    const week = Math.floor(d / 7) + 1;
+    if (!log) return null;
+    return {
+      day: d,
+      week,
+      block: week <= 4 ? 1 : week <= 8 ? 2 : 3,
+      dayType: dayInfo?.id || 'peak',
+      dayName: dayInfo?.name || 'Peak Week',
+      exercises: log.exercises.map(ex => {
+        const doneSets = (ex.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
+        const bestE1RM = doneSets.length
+          ? Math.max(...doneSets.map(s => epley(parseFloat(s.kg), parseInt(s.reps))))
+          : 0;
+        const lastRPE = doneSets.length ? parseFloat(doneSets[doneSets.length-1].rpe) || null : null;
+        return {
+          name: ex.name,
+          sets: doneSets.map(s => ({ kg: parseFloat(s.kg), reps: parseInt(s.reps), rpe: s.rpe ? parseFloat(s.rpe) : null })),
+          bestE1RM: Math.round(bestE1RM * 10) / 10,
+          totalVolume: Math.round(doneSets.reduce((sum, s) => sum + parseFloat(s.kg) * parseInt(s.reps), 0)),
+          lastRPE,
+        };
+      }),
+      energyScore: as.sleepLog?.[d] || null,
+      restScore: as.restScore?.[d] || null,
+      bodyweight: as.bodyweight?.[d] || null,
+    };
+  }).filter(Boolean);
+
+  const data = {
+    exportDate: new Date().toLocaleDateString('da-DK'),
+    exportVersion: 2,
+    athlete: { profile: 'Oliver' },
+    programDuration: { weeks: 12, blocks: 3 },
+    startOneRM: state.programStart1RM,
+    finalOneRM: state.oneRM,
+    peakWeekAttempts: as.peakAttempts || {},
+    peakWeekResults: as.peakResults || {},
+    personalRecords: as.pr || {},
+    bodyweightLog: as.bodyweight || {},
+    sessions,
+    autoregHistory: as.autoregAdj || {},
+  };
+
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sbd-program-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Program eksporteret 📁');
 }
 
 function getSessionHistory(exName) {
