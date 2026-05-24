@@ -3,8 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<!-- PWA -->
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SBD Tracker">
+<meta name="theme-color" content="#111318">
+<link rel="manifest" href="manifest.json">
+<!-- iOS icons -->
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>SBD Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -633,8 +640,7 @@ html, body {
       </div>
     </div>
 
-    <div class="settings-label">Nuværende position</div>
-    <div class="settings-card">
+    <div class="settings-label">Nuværende position</div>    <div class="settings-card">
       <div class="settings-row">
         <span class="settings-row-label">Uge</span>
         <span class="settings-row-val" id="setting-week">1</span>
@@ -649,6 +655,16 @@ html, body {
           font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:6px 12px;
           border-radius:6px;border:1px solid var(--border);background:none;
           color:var(--muted);cursor:pointer;">Spring dag over →</button>
+      </div>
+    </div>
+    <div class="settings-label">Notifikationer</div>
+    <div class="settings-card">
+      <div class="settings-row" id="notif-setting">
+        <span class="settings-row-label">Notifikationer</span>
+        <button onclick="requestNotifications()" style="font-family:'Barlow Condensed',sans-serif;
+          font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+          padding:6px 12px;border-radius:6px;border:1px solid var(--gold);
+          background:none;color:var(--gold);cursor:pointer;">Aktivér →</button>
       </div>
     </div>
 
@@ -1292,6 +1308,7 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   programStart1RM: null, // locked at program start, never changes mid-program
   programHistory: [], exerciseNotes: {}, profile: 'main',
   pr: {}, autoregAdj: {}, restScore: {}, sleepLog: {}, bodyweight: {},
+  peakAttempts: {}, peakResults: {},
 };
 
 if (!state.timerPrimary)   state.timerPrimary   = 240;
@@ -2875,6 +2892,23 @@ function renderSettings() {
 
   document.getElementById('setting-week').textContent = getWeek();
   document.getElementById('setting-day').textContent = getCycleDay() + 1;
+
+  // Update notification button based on current permission
+  const notifEl = document.getElementById('notif-setting');
+  if (notifEl) {
+    const perm = getNotificationPermission();
+    notifEl.innerHTML = perm === 'granted'
+      ? `<span class="settings-row-label">Notifikationer</span>
+         <span style="font-size:12px;color:var(--green);font-weight:600;">✓ Aktiveret</span>`
+      : perm === 'unsupported'
+      ? `<span class="settings-row-label">Notifikationer</span>
+         <span style="font-size:12px;color:var(--muted);">Ikke understøttet</span>`
+      : `<span class="settings-row-label">Notifikationer</span>
+         <button onclick="requestNotifications()" style="font-family:'Barlow Condensed',sans-serif;
+           font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+           padding:6px 12px;border-radius:6px;border:1px solid var(--gold);
+           background:none;color:var(--gold);cursor:pointer;">Aktivér →</button>`;
+  }
   document.getElementById('setting-timer-primary').textContent = fmtTime(state.timerPrimary);
   document.getElementById('setting-timer-acc').textContent = fmtTime(state.timerAcc);
 
@@ -4054,7 +4088,68 @@ function drawChart() {
   });
 }
 
-// ─── INIT ────────────────────────────────────────────────────────────────────
+// ─── SERVICE WORKER & NOTIFICATIONS ──────────────────────────────────────────
+
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('/sw.js');
+  } catch(e) { console.warn('SW registration failed:', e); }
+}
+
+async function requestNotifications() {
+  if (!('Notification' in window)) {
+    showToast('Din browser understøtter ikke notifikationer'); return;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission === 'granted') {
+    scheduleNextNotification();
+    showToast('Notifikationer aktiveret ✓');
+    renderSettings();
+  } else {
+    showToast('Aktivér notifikationer i browser-indstillinger');
+  }
+}
+
+function getNotificationPermission() {
+  if (!('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
+
+function scheduleNextNotification() {
+  if (getNotificationPermission() !== 'granted') return;
+  if (!('serviceWorker' in navigator)) return;
+  const day = isPeakWeek() ? PEAK_WEEK[getPeakDay()] : CYCLE[getCycleDay()];
+  if (!day) return;
+  const now = new Date();
+  const notifTime = new Date();
+  if (day.type === 'rest') {
+    notifTime.setDate(notifTime.getDate() + 1);
+    notifTime.setHours(8, 0, 0, 0);
+  } else {
+    notifTime.setHours(7, 0, 0, 0);
+    if (notifTime <= now) return;
+  }
+  const delayMs = notifTime - now;
+  if (delayMs <= 0) return;
+  const exercises = (!isPeakWeek() && day.type === 'workout')
+    ? getExercises(day.id, getWeek()) : [];
+  const primary = exercises.find(e => e.type === 'primary');
+  const liftName = primary ? primary.name : day.name;
+  const title = day.type === 'rest' ? '💤 Hviledag i dag' : `💪 ${day.short} i dag`;
+  const body = day.type === 'rest'
+    ? 'Aktiv restitution — let gang eller mobilitet'
+    : `${liftName} — Uge ${getWeek()}, Blok ${getBlock(getWeek())}`;
+  navigator.serviceWorker.ready.then(sw => {
+    sw.active?.postMessage({ type: 'SCHEDULE_NOTIFICATION', title, body, delayMs });
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+registerSW();
+if (getNotificationPermission() === 'granted') {
+  navigator.serviceWorker.ready.then(() => scheduleNextNotification());
+}
 renderToday();
 </script>
 </body>
