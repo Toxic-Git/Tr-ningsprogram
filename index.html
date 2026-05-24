@@ -13,8 +13,14 @@
 <!-- iOS icons -->
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>SBD Tracker</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&display=swap');
+
+/* Fallback stack if Google Fonts unavailable */
+:root {
+  --font-condensed: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --font-body: 'Barlow', Arial, sans-serif;
+}
 :root {
   --bg: #111318;
   --surface: #1a1d24;
@@ -4090,11 +4096,16 @@ function drawChart() {
 
 // ─── SERVICE WORKER & NOTIFICATIONS ──────────────────────────────────────────
 
-async function registerSW() {
+function registerSW() {
   if (!('serviceWorker' in navigator)) return;
-  try {
-    await navigator.serviceWorker.register('/sw.js');
-  } catch(e) { console.warn('SW registration failed:', e); }
+  if (!location.hostname.includes('github.io') && !location.hostname.includes('localhost')) return;
+  navigator.serviceWorker.register('/sw.js')
+    .then(() => {
+      if (getNotificationPermission() === 'granted') {
+        navigator.serviceWorker.ready.then(() => scheduleNextNotification());
+      }
+    })
+    .catch(e => console.warn('SW registration failed:', e));
 }
 
 async function requestNotifications() {
@@ -4147,9 +4158,6 @@ function scheduleNextNotification() {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 registerSW();
-if (getNotificationPermission() === 'granted') {
-  navigator.serviceWorker.ready.then(() => scheduleNextNotification());
-}
 renderToday();
 </script>
 </body>
