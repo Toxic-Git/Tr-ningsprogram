@@ -767,17 +767,7 @@ html, body {
   </div>
 </div>
 
-<script>
-window.onerror = function(msg, src, line, col, err) {
-  const toast = document.getElementById('toast');
-  if (toast) {
-    toast.textContent = `Fejl linje ${line}:${col} — ${msg}`;
-    toast.classList.add('show');
-  }
-  console.error('CRASH:', msg, 'line:', line, 'col:', col, err?.stack);
-  return false;
-};
-</script>
+
 <script>
 // ─── CACHES ──────────────────────────────────────────────────────────────────
 let _exercisesCache = {};
