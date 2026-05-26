@@ -1304,7 +1304,7 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   programStart1RM: null, // locked at program start, never changes mid-program
   programHistory: [], exerciseNotes: {}, profile: 'main',
   pr: {}, autoregAdj: {}, restScore: {}, sleepLog: {}, bodyweight: {},
-  peakAttempts: {}, peakResults: {},
+  peakAttempts: {}, peakResults: {}, dayOverrides: {},
 };
 
 if (!state.timerPrimary)   state.timerPrimary   = 240;
@@ -1330,6 +1330,7 @@ if (!partnerState.sleepLog) partnerState.sleepLog = {};
 if (!state.bodyweight) state.bodyweight = {};
 if (!state.peakAttempts) state.peakAttempts = {};
 if (!state.peakResults) state.peakResults = {};
+if (!state.dayOverrides) state.dayOverrides = {};
 // Auto-set start date if missing — back-calculate from totalDays
 if (!state.programStartDate) {
   const d = new Date();
@@ -1415,7 +1416,13 @@ function getTodayDateStr() {
 }
 
 function getWeek()     { return Math.min(12, Math.floor(aState().totalDays / 7) + 1); }
-function getCycleDay() { return aState().totalDays % 8; }
+function getCycleDay() {
+  const as = aState();
+  // Check for a day override for today
+  const override = as.dayOverrides?.[as.totalDays];
+  if (override !== undefined) return override;
+  return as.totalDays % 8;
+}
 function logKey()      { return `day${aState().totalDays}`; }
 
 function switchProfile(p) {
@@ -1597,12 +1604,38 @@ function renderToday() {
   }
 
   // Day header
+  const hasOverride = aState().dayOverrides?.[aState().totalDays] !== undefined;
+  const swapBtn = (!isPeakWeek() && day.type === 'workout')
+    ? `<button onclick="showDaySwapModal()" style="
+        font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+        letter-spacing:1px;text-transform:uppercase;padding:5px 10px;
+        border-radius:6px;border:1px solid var(--border);background:none;
+        color:${hasOverride ? 'var(--gold)' : 'var(--muted)'};cursor:pointer;
+        white-space:nowrap;">
+        ${hasOverride ? '⇄ Byttet' : '⇄ Byt dag'}
+      </button>`
+    : '';
+
+  const undoBtn = canUndoAdvance()
+    ? `<button onclick="undoAdvanceDay()" style="
+        font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
+        letter-spacing:1px;text-transform:uppercase;padding:5px 10px;
+        border-radius:6px;border:1px solid var(--dl);background:none;
+        color:var(--dl);cursor:pointer;white-space:nowrap;">
+        ↩ Fortryd
+      </button>`
+    : '';
+
   html += `<div class="today-header">
     <div>
       <div class="today-day-label">${blockLabel(week)}</div>
       <div class="today-day-name">${day.name}</div>
     </div>
-    <div class="week-pill ${blockClass(week)}">${day.short}</div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+      <div class="week-pill ${blockClass(week)}">${day.short}</div>
+      ${swapBtn}
+      ${undoBtn}
+    </div>
   </div>`;
 
   if (day.type === 'rest') {
@@ -2208,7 +2241,10 @@ function toggleSet(ei, si) {
 function advanceDay() {
   const as = aState();
   const maxDays = 12 * 7;
-  if (as.totalDays < maxDays - 1) as.totalDays++;
+  if (as.totalDays < maxDays - 1) {
+    as.totalDays++;
+    as.lastAdvanceTime = Date.now(); // track when we advanced
+  }
   saveState();
   renderToday();
   const sw = document.getElementById('setting-week');
@@ -2216,6 +2252,42 @@ function advanceDay() {
   if (sw) sw.textContent = getWeek();
   if (sd) sd.textContent = getCycleDay() + 1;
 }
+
+function canUndoAdvance() {
+  const as = aState();
+  if (as.totalDays === 0) return false;
+  if (!as.lastAdvanceTime) return false;
+  // Only allow undo within 30 minutes
+  if (Date.now() - as.lastAdvanceTime > 30 * 60 * 1000) return false;
+  // Don't allow undo if current day already has logged sets
+  const currentLog = as.logs[logKey()];
+  const hasSets = currentLog?.exercises?.some(ex =>
+    ex.sets?.some(s => s.done)
+  );
+  if (hasSets) return false;
+  return true;
+}
+
+function undoAdvanceDay() {
+  const as = aState();
+  if (!canUndoAdvance()) {
+    showToast('Kan ikke fortryde — dag allerede påbegyndt');
+    return;
+  }
+  // Go back one day
+  as.totalDays--;
+  // Remove from completedDays if it was just added
+  const idx = as.completedDays.indexOf(as.totalDays);
+  if (idx > -1) as.completedDays.splice(idx, 1);
+  // Clear the log for the day we went back to
+  delete as.logs[logKey()];
+  as.lastAdvanceTime = null;
+  saveState();
+  invalidateCache();
+  renderToday();
+  showToast('Fortrød dagsskifte ↩');
+}
+window.undoAdvanceDay = undoAdvanceDay;
 
 // Expose peak week functions to window for onclick handlers in innerHTML
 window.logPeakResult = logPeakResult;
@@ -2351,6 +2423,7 @@ function startNewProgram(newSQ, newBP, newDL) {
   state.autoDeloadTriggered = null;
   state.peakAttempts = {};
   state.peakResults = {};
+  state.dayOverrides = {};
   state.programStartDate = new Date().toISOString().slice(0,10); // today
 
   saveState();
@@ -2864,6 +2937,56 @@ function updateStartDate(dateStr) {
   showToast(`Startdato sat til ${dateStr}`);
 }
 
+function showDaySwapModal() {
+  const as = aState();
+  const currentCycleDay = getCycleDay();
+  const week = getWeek();
+
+  // Only show workout days that aren't today
+  const options = CYCLE
+    .map((d, i) => ({ ...d, cycleIdx: i }))
+    .filter(d => d.type === 'workout' && d.cycleIdx !== currentCycleDay);
+
+  const optionsHtml = options.map(d => {
+    const exercises = getExercises(d.id, week);
+    const primary = exercises.find(e => e.type === 'primary');
+    const liftColor = d.id.includes('low') ? 'var(--sq)' : d.id.includes('bb') ? 'var(--dl)' : 'var(--bp)';
+    return `<button onclick="swapDay(${d.cycleIdx})" style="
+      width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border);
+      border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer;
+      font-family:'Barlow',sans-serif;color:var(--text);">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
+        color:${liftColor};">${d.name}</div>
+      ${primary ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">${primary.name}</div>` : ''}
+    </button>`;
+  }).join('');
+
+  document.getElementById('modal-title').innerHTML = 'Skift dagens træning';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+      Vælg hvilken dag du vil tage i dag i stedet. Den normale dag rykker ikke — din cyklus fortsætter som planlagt bagefter.
+    </div>
+    ${optionsHtml}`;
+  document.getElementById('modal-confirm-btn').parentElement.innerHTML = `
+    <button class="modal-btn modal-cancel" onclick="closeModal()" style="flex:1;">Annuller</button>`;
+  document.getElementById('modal').classList.add('open');
+}
+window.showDaySwapModal = showDaySwapModal;
+
+function swapDay(newCycleIdx) {
+  const as = aState();
+  if (!as.dayOverrides) as.dayOverrides = {};
+  as.dayOverrides[as.totalDays] = newCycleIdx;
+  // Clear any existing log for today so it re-initialises with correct exercises
+  delete as.logs[logKey()];
+  saveState();
+  invalidateCache();
+  closeModal();
+  renderToday();
+  showToast(`Dag byttet til ${CYCLE[newCycleIdx].name}`);
+}
+window.swapDay = swapDay;
+
 function skipDay() {
   showModal(
     'Spring dag over',
@@ -2970,6 +3093,7 @@ function confirmReset() {
       state.restScore = {}; state.sleepLog = {};
       state.autoDeloadTriggered = null;
       state.programStart1RM = { ...state.oneRM };
+      state.dayOverrides = {};
     }
     saveState();
     closeModal();
