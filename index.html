@@ -562,7 +562,13 @@ html, body {
         <div class="chart-empty" id="acc-chart-empty" style="display:none;">Log accessories for at se progression.</div>
       </div>
     </div>
-    <!-- Bodyweight chart -->
+    <div class="chart-wrap" style="margin-top:0;">
+      <div class="chart-title">Sessionsvarighed over tid</div>
+      <div class="chart-canvas-wrap">
+        <canvas id="duration-chart"></canvas>
+        <div class="chart-empty" id="duration-chart-empty" style="display:none;">Afslut mindst 2 træninger for at se grafen.</div>
+      </div>
+    </div>
     <div class="chart-wrap" style="margin-top:0;">
       <div class="chart-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>Kropsvægt over tid</span>
@@ -637,6 +643,14 @@ html, body {
         </div>
       </div>
       <div class="settings-row">
+        <span class="settings-row-label">Backdown pause</span>
+        <div class="week-selector">
+          <button class="week-btn" onclick="adjustTimer('backdown',-30)">−</button>
+          <span class="settings-row-val" id="setting-timer-backdown">3:00</span>
+          <button class="week-btn" onclick="adjustTimer('backdown',30)">+</button>
+        </div>
+      </div>
+      <div class="settings-row">
         <span class="settings-row-label">Accessory pause</span>
         <div class="week-selector">
           <button class="week-btn" onclick="adjustTimer('acc',-30)">−</button>
@@ -656,11 +670,25 @@ html, body {
         <span class="settings-row-val" id="setting-day">1</span>
       </div>
       <div class="settings-row">
+        <span class="settings-row-label" style="font-size:12px;color:var(--muted);">Vælg dag manuelt</span>
+        <button onclick="showChooseDayModal()" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;
+          font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:6px 12px;
+          border-radius:6px;border:1px solid var(--gold);background:none;
+          color:var(--gold);cursor:pointer;">Vælg dag →</button>
+      </div>
+      <div class="settings-row">
         <span class="settings-row-label" style="color:var(--muted);font-size:12px;">Missede en dag?</span>
         <button onclick="skipDay()" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;
           font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:6px 12px;
           border-radius:6px;border:1px solid var(--border);background:none;
-          color:var(--muted);cursor:pointer;">Spring dag over →</button>
+          color:var(--muted);cursor:pointer;">Spring over →</button>
+      </div>
+      <div class="settings-row">
+        <span class="settings-row-label" style="color:var(--muted);font-size:12px;">Gik for hurtigt frem?</span>
+        <button onclick="manualGoBack()" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;
+          font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:6px 12px;
+          border-radius:6px;border:1px solid var(--dl);background:none;
+          color:var(--dl);cursor:pointer;">↩ Gå tilbage</button>
       </div>
     </div>
     <div class="settings-label">Notifikationer</div>
@@ -1214,7 +1242,8 @@ function _getExercises(dayId, week) {
           else              { sets=3; reps=8;  repsRange='6–8';  }
         }
       }
-      if (dl) sets = Math.max(2, sets - 1);
+      // Deload: reduce to ~40% of normal sets
+      if (dl) sets = Math.max(1, Math.round(sets * 0.4));
       return {
         name: a.name, badge: 'acc', type: 'acc',
         scheme: { sets, reps, repsRange, kg: a.kg },
@@ -1259,7 +1288,8 @@ function _getExercises(dayId, week) {
           else              { sets=3; reps=8;  repsRange='6–8';  }
         }
       }
-      if (dl) { sets = Math.max(2, sets-1); }
+      // Deload: reduce to ~40% of normal sets — same weight, same failure point, less volume
+      if (dl) sets = Math.max(1, Math.round(sets * 0.4));
     }
     return {
       name: a.name, badge: a.badge || 'acc', type: 'acc',
@@ -1299,7 +1329,8 @@ function _getExercises(dayId, week) {
 // ─── STATE ──────────────────────────────────────────────────────────────────
 let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   totalDays: 0, logs: {}, completedDays: [],
-  timerPrimary: 240, timerAcc: 120,
+  timerPrimary: 240, timerAcc: 120, timerBackdown: 180,
+  sessionTimes: {}, // { dayN: { start, end } }
   oneRM: { sq: 117.02, bp: 89.89, dl: 178.19 },
   programStart1RM: null, // locked at program start, never changes mid-program
   programHistory: [], exerciseNotes: {}, profile: 'main',
@@ -1308,7 +1339,9 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
 };
 
 if (!state.timerPrimary)   state.timerPrimary   = 240;
+if (!state.timerBackdown)  state.timerBackdown  = 180;
 if (!state.timerAcc)       state.timerAcc       = 120;
+if (!state.sessionTimes)   state.sessionTimes   = {};
 if (!state.oneRM)          state.oneRM          = { sq: 117.02, bp: 89.89, dl: 178.19 };
 if (!state.exerciseNotes)  state.exerciseNotes  = {};
 if (!state.programHistory) state.programHistory = [];
@@ -1605,6 +1638,15 @@ function renderToday() {
 
   // Day header
   const hasOverride = aState().dayOverrides?.[aState().totalDays] !== undefined;
+  const estimated = (!isPeakWeek() && day.type === 'workout')
+    ? calcEstimatedTime(CYCLE[cycleDay]?.id || day.id, week) : 0;
+  const timing = state.sessionTimes?.[logKey()];
+  const actualSecs = timing?.start && timing?.end
+    ? Math.round((timing.end - timing.start) / 1000) : null;
+  const timeStr = actualSecs
+    ? `✓ ${fmtDuration(actualSecs)}`
+    : estimated > 0 ? `~${fmtDuration(estimated)}` : '';
+
   const swapBtn = (!isPeakWeek() && day.type === 'workout')
     ? `<button onclick="showDaySwapModal()" style="
         font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;
@@ -1630,6 +1672,7 @@ function renderToday() {
     <div>
       <div class="today-day-label">${blockLabel(week)}</div>
       <div class="today-day-name">${day.name}</div>
+      ${timeStr ? `<div style="font-size:11px;color:${actualSecs ? 'var(--green)' : 'var(--muted)'};margin-top:3px;">${timeStr}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
       <div class="week-pill ${blockClass(week)}">${day.short}</div>
@@ -1929,6 +1972,17 @@ function renderToday() {
       }
     } // end showRPEInput autoreg block
 
+    // RPE reminder — shows when all sets done but RPE not logged
+    if ((isPrimary || isBackdown) && lastSet?.done && !lastSet?.rpe) {
+      html += `<div style="padding:10px 16px;border-top:1px solid var(--border);
+        display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">⚠️</span>
+        <span style="font-size:12px;color:var(--gold);font-weight:500;">
+          Husk at logge RPE på sidste sæt — bruges til autoregulering
+        </span>
+      </div>`;
+    }
+
     // Hidden placeholder for partial re-render (autoreg shows after last set)
     if ((isPrimary || isBackdown) && !lastSet?.done) {
       html += `<div class="autoreg-bar" id="autoreg-bar-${ei}" style="display:none;"></div>`;
@@ -2127,6 +2181,15 @@ function toggleSet(ei, si) {
   if (!s.kg && ex.scheme.kg) s.kg = ex.scheme.kg;
   if (!s.reps) s.reps = ex.scheme.reps;
   s.done = !s.done;
+
+  // Track session start time on first completed set
+  if (s.done) {
+    const key = logKey();
+    if (!state.sessionTimes[key]) {
+      state.sessionTimes[key] = { start: Date.now(), end: null };
+    }
+  }
+
   saveState();
 
   // Check PRs when set completed
@@ -2163,7 +2226,9 @@ function toggleSet(ei, si) {
 
   if (s.done) {
     const isPrimaryOrBD = ex.type === 'primary' || ex.type === 'secondary' || ex.type === 'backdown';
-    const duration = isPrimaryOrBD ? state.timerPrimary : state.timerAcc;
+    const duration = ex.type === 'backdown' ? state.timerBackdown
+      : (ex.type === 'primary' || ex.type === 'secondary') ? state.timerPrimary
+      : state.timerAcc;
     startTimer(duration, ex.name);
 
     // Autoreg: reps primær, RPE sekundær — trend-baseret
@@ -2241,10 +2306,36 @@ function toggleSet(ei, si) {
 function advanceDay() {
   const as = aState();
   const maxDays = 12 * 7;
-  if (as.totalDays < maxDays - 1) {
-    as.totalDays++;
-    as.lastAdvanceTime = Date.now(); // track when we advanced
+  if (as.totalDays >= maxDays - 1) return;
+
+  const nextDay = as.totalDays + 1;
+  const nextWeek = Math.min(12, Math.floor(nextDay / 7) + 1);
+  const enteringPeakWeek = nextWeek === 12 && getWeek() < 12;
+
+  if (enteringPeakWeek) {
+    showModal(
+      '🏆 Peak-uge starter nu',
+      `<div style="font-size:13px;color:var(--muted);line-height:1.7;">
+        Du er ved at gå ind i uge 12 — din peak-uge.<br><br>
+        <strong style="color:var(--text);">Plan:</strong><br>
+        Dag 1 → Squat Solo Max<br>
+        Dag 3 → Deadlift Solo Max<br>
+        Dag 5 → Bench Solo Max<br>
+        Dag 7 → SBD Konkurrence<br><br>
+        Sørg for du er fuldt restitueret inden du starter.
+      </div>`,
+      () => { _doAdvanceDay(as, nextDay); closeModal(); },
+      false
+    );
+    return;
   }
+
+  _doAdvanceDay(as, nextDay);
+}
+
+function _doAdvanceDay(as, nextDay) {
+  as.totalDays = nextDay !== undefined ? nextDay : as.totalDays + 1;
+  state.lastAdvanceTime = Date.now(); // always on state directly, not aState()
   saveState();
   renderToday();
   const sw = document.getElementById('setting-week');
@@ -2252,13 +2343,14 @@ function advanceDay() {
   if (sw) sw.textContent = getWeek();
   if (sd) sd.textContent = getCycleDay() + 1;
 }
+window._doAdvanceDay = _doAdvanceDay;
 
 function canUndoAdvance() {
   const as = aState();
   if (as.totalDays === 0) return false;
-  if (!as.lastAdvanceTime) return false;
-  // Only allow undo within 30 minutes
-  if (Date.now() - as.lastAdvanceTime > 30 * 60 * 1000) return false;
+  if (!state.lastAdvanceTime) return false;
+  // Only allow undo within 60 minutes
+  if (Date.now() - state.lastAdvanceTime > 60 * 60 * 1000) return false;
   // Don't allow undo if current day already has logged sets
   const currentLog = as.logs[logKey()];
   const hasSets = currentLog?.exercises?.some(ex =>
@@ -2297,8 +2389,46 @@ window.advanceDay = advanceDay;
 window.exportProgramData = exportProgramData;
 window.startNewProgram = startNewProgram;
 
+function calcEstimatedTime(dayId, week) {
+  const exercises = getExercises(dayId, week);
+  let totalSecs = 0;
+  // Warmup: ~5 min per primary lift
+  const hasPrimary = exercises.some(e => e.type === 'primary');
+  if (hasPrimary) totalSecs += 5 * 60;
+
+  exercises.forEach(ex => {
+    const sets = ex.scheme?.sets || 0;
+    // Time per set: ~30s to execute
+    const execTime = 30;
+    // Rest time after each set (except last)
+    const restTime = ex.type === 'primary' || ex.type === 'secondary' ? state.timerPrimary
+      : ex.type === 'backdown' ? state.timerBackdown
+      : state.timerAcc;
+    totalSecs += sets * execTime + Math.max(0, sets - 1) * restTime;
+  });
+  return Math.round(totalSecs);
+}
+
+function fmtDuration(secs) {
+  if (!secs || secs <= 0) return '—';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}t ${m}m`;
+  return `${m} min`;
+}
+
 function finishWorkout() {
   const as = aState();
+
+  // Record session end time
+  const key = logKey();
+  if (!state.sessionTimes) state.sessionTimes = {};
+  if (state.sessionTimes[key]) {
+    state.sessionTimes[key].end = Date.now();
+  } else {
+    // Edge case: finished without logging any sets
+    state.sessionTimes[key] = { start: Date.now(), end: Date.now() };
+  }
 
   // Mark day as completed
   if (!as.completedDays.includes(as.totalDays)) {
@@ -2306,18 +2436,20 @@ function finishWorkout() {
   }
   saveState();
 
-  // Peak week is handled by renderPeakDay buttons — not here
-  if (isPeakWeek()) {
-    advanceDay();
-    return;
+  // Show session summary toast
+  const timing = state.sessionTimes[key];
+  if (timing?.start && timing?.end) {
+    const actual = Math.round((timing.end - timing.start) / 1000);
+    const estimated = isPeakWeek() ? 0 : calcEstimatedTime(CYCLE[getCycleDay()].id, getWeek());
+    const diff = actual - estimated;
+    const diffStr = estimated > 0
+      ? ` (est. ${fmtDuration(estimated)}${diff > 0 ? ', +' : ', '}${fmtDuration(Math.abs(diff))})`
+      : '';
+    showToast(`✓ Træning afsluttet — ${fmtDuration(actual)}${diffStr}`);
   }
 
-  // Partner profile — just advance
-  if (state.profile === 'partner') {
-    advanceDay();
-    return;
-  }
-
+  if (isPeakWeek()) { advanceDay(); return; }
+  if (state.profile === 'partner') { advanceDay(); return; }
   advanceDay();
 }
 
@@ -2424,6 +2556,7 @@ function startNewProgram(newSQ, newBP, newDL) {
   state.peakAttempts = {};
   state.peakResults = {};
   state.dayOverrides = {};
+  state.sessionTimes = {};
   state.programStartDate = new Date().toISOString().slice(0,10); // today
 
   saveState();
@@ -2846,6 +2979,7 @@ function renderHistory() {
   const done = as.completedDays.slice().reverse();
   document.getElementById('history-sub').textContent = `${done.length} træninger gennemført`;
   drawChart();
+  drawDurationChart();
   renderVolumeDashboard();
   renderAccChartTabs();
   renderWeeklySummary();
@@ -2987,6 +3121,118 @@ function swapDay(newCycleIdx) {
 }
 window.swapDay = swapDay;
 
+function showChooseDayModal() {
+  const currentWeek = getWeek();
+  const currentCycleDay = getCycleDay();
+
+  // Build week selector (1-11, not 12 which is peak)
+  const weekOptions = Array.from({length: 11}, (_,i) => i+1).map(w =>
+    `<option value="${w}" ${w===currentWeek?'selected':''}>${w<=4?'Blok 1':w<=8?'Blok 2':'Blok 3'} — Uge ${w}${w===4||w===8?' (Deload)':''}</option>`
+  ).join('');
+
+  // Build cycle day selector
+  const dayOptions = CYCLE.map((d, i) =>
+    `<option value="${i}" ${i===currentCycleDay?'selected':''}>${i+1}: ${d.name}</option>`
+  ).join('');
+
+  document.getElementById('modal-title').innerHTML = 'Vælg dag manuelt';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+      Sætter din position i programmet manuelt. Brug dette når du pusher et nyt program og vil starte på den korrekte dag.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Uge</div>
+        <select id="choose-week" style="width:100%;background:var(--surface2);border:1px solid var(--border);
+          border-radius:8px;color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;
+          padding:10px 12px;-webkit-appearance:none;appearance:none;">
+          ${weekOptions}
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Dag i cyklus</div>
+        <select id="choose-day" style="width:100%;background:var(--surface2);border:1px solid var(--border);
+          border-radius:8px;color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;
+          padding:10px 12px;-webkit-appearance:none;appearance:none;">
+          ${dayOptions}
+        </select>
+      </div>
+    </div>`;
+
+  document.getElementById('modal-confirm-btn').parentElement.innerHTML = `
+    <button class="modal-btn" style="background:var(--gold);color:var(--bg);
+      font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;
+      letter-spacing:1px;text-transform:uppercase;cursor:pointer;flex:1;
+      padding:13px;border-radius:8px;border:none;"
+      onclick="setManualDay()">Sæt position →</button>
+    <button class="modal-btn modal-cancel" onclick="closeModal()" style="flex:0.5;">Annuller</button>`;
+
+  document.getElementById('modal').classList.add('open');
+}
+window.showChooseDayModal = showChooseDayModal;
+
+function setManualDay() {
+  const week = parseInt(document.getElementById('choose-week').value);
+  const cycleDay = parseInt(document.getElementById('choose-day').value);
+  if (isNaN(week) || isNaN(cycleDay)) return;
+
+  // Calculate totalDays from week and cycleDay
+  // Week 1 = days 0-6, week 2 = days 7-13 etc.
+  // Within a week, we pick the day that matches the cycle position
+  // totalDays must satisfy: totalDays % 8 === cycleDay AND Math.floor(totalDays/7)+1 === week
+  // Find the totalDays value in the week range that gives the right cycleDay
+  const weekStart = (week - 1) * 7;
+  const weekEnd = week * 7;
+
+  let bestDay = weekStart + cycleDay;
+  // Ensure cycleDay alignment: find day in this week where totalDays % 8 === cycleDay
+  for (let d = weekStart; d < weekEnd; d++) {
+    if (d % 8 === cycleDay) { bestDay = d; break; }
+  }
+  // Fallback: just use weekStart + cycleDay clamped to week range
+  if (bestDay < weekStart || bestDay >= weekEnd) bestDay = Math.min(weekEnd - 1, weekStart + cycleDay);
+
+  const as = aState();
+  as.totalDays = bestDay;
+  // Clear day override for this day
+  if (as.dayOverrides) delete as.dayOverrides[bestDay];
+  state.lastAdvanceTime = null;
+  saveState();
+  invalidateCache();
+  closeModal();
+  renderToday();
+  renderSettings();
+  showToast(`Position sat til Uge ${week}, Dag ${cycleDay + 1} (${CYCLE[cycleDay].name})`);
+}
+window.setManualDay = setManualDay;
+
+function manualGoBack() {
+  const as = aState();
+  if (as.totalDays === 0) { showToast('Du er allerede på dag 1'); return; }
+  const currentLog = as.logs[logKey()];
+  const hasSets = currentLog?.exercises?.some(ex => ex.sets?.some(s => s.done));
+  const dayName = isPeakWeek()
+    ? PEAK_WEEK[getPeakDay()]?.name
+    : CYCLE[getCycleDay()]?.name;
+  const warningMsg = hasSets
+    ? `⚠️ Den aktuelle dag (${dayName}) har allerede loggede sæt. Disse slettes hvis du går tilbage. Er du sikker?`
+    : `Gå tilbage fra ${dayName}? Den aktuelle dag nulstilles.`;
+  showModal('↩ Gå en dag tilbage', warningMsg, () => {
+    as.totalDays--;
+    delete as.logs[logKey()];
+    const idx = as.completedDays.indexOf(as.totalDays);
+    if (idx > -1) as.completedDays.splice(idx, 1);
+    state.lastAdvanceTime = null;
+    saveState();
+    invalidateCache();
+    closeModal();
+    renderToday();
+    renderSettings();
+    showToast('Gik én dag tilbage ↩');
+  }, true);
+}
+window.manualGoBack = manualGoBack;
+
 function skipDay() {
   showModal(
     'Spring dag over',
@@ -3029,6 +3275,7 @@ function renderSettings() {
            background:none;color:var(--gold);cursor:pointer;">Aktivér →</button>`;
   }
   document.getElementById('setting-timer-primary').textContent = fmtTime(state.timerPrimary);
+  document.getElementById('setting-timer-backdown').textContent = fmtTime(state.timerBackdown || 180);
   document.getElementById('setting-timer-acc').textContent = fmtTime(state.timerAcc);
 
   // Hide SBD-specific sections for partner
@@ -3094,6 +3341,9 @@ function confirmReset() {
       state.autoDeloadTriggered = null;
       state.programStart1RM = { ...state.oneRM };
       state.dayOverrides = {};
+      state.peakAttempts = {};
+      state.peakResults = {};
+      state.sessionTimes = {};
     }
     saveState();
     closeModal();
@@ -3204,6 +3454,85 @@ function saveBodyweight(kg) {
   const scrollY = window.scrollY;
   renderToday();
   requestAnimationFrame(() => window.scrollTo(0, scrollY));
+}
+
+function drawDurationChart() {
+  const canvas = document.getElementById('duration-chart');
+  const empty  = document.getElementById('duration-chart-empty');
+  if (!canvas) return;
+
+  const times = state.sessionTimes || {};
+  const points = Object.entries(times)
+    .filter(([, t]) => t?.start && t?.end && t.end > t.start)
+    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+    .map(([day, t]) => {
+      const mins = Math.round((t.end - t.start) / 60000);
+      const week = Math.floor(parseInt(day) / 7) + 1;
+      const dayInfo = CYCLE[parseInt(day) % 8];
+      return { x: `U${week} ${dayInfo?.short || ''}`, y: mins, estimated: null };
+    });
+
+  if (points.length < 2) {
+    canvas.style.display = 'none'; empty.style.display = 'block'; return;
+  }
+  canvas.style.display = 'block'; empty.style.display = 'none';
+
+  const wrap = canvas.parentElement;
+  if (!wrap || wrap.clientWidth === 0) return;
+  canvas.width = wrap.clientWidth; canvas.height = 140;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const vals = points.map(p => p.y);
+  const minV = Math.max(0, Math.min(...vals) - 10);
+  const maxV = Math.max(...vals) + 10;
+  const pad = { t:8, r:12, b:28, l:44 };
+  const W = canvas.width - pad.l - pad.r;
+  const H = canvas.height - pad.t - pad.b;
+  const color = 'var(--gold)';
+  const xS = i => pad.l + (i / (points.length - 1)) * W;
+  const yS = v => pad.t + H - ((v - minV) / (maxV - minV)) * H;
+
+  // Grid lines
+  ctx.strokeStyle = '#2e3240'; ctx.lineWidth = 1;
+  [0, 0.5, 1].forEach(t => {
+    const y = pad.t + H * (1 - t);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + W, y); ctx.stroke();
+    ctx.fillStyle = '#6b7280'; ctx.font = '10px Barlow,sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(minV + t * (maxV - minV)) + 'm', pad.l - 3, y + 3);
+  });
+
+  // Area fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + H);
+  grad.addColorStop(0, '#d4a84333'); grad.addColorStop(1, '#d4a84300');
+  ctx.beginPath(); ctx.moveTo(xS(0), yS(points[0].y));
+  points.forEach((p, i) => { if (i > 0) ctx.lineTo(xS(i), yS(p.y)); });
+  ctx.lineTo(xS(points.length - 1), pad.t + H); ctx.lineTo(xS(0), pad.t + H);
+  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+
+  // Line
+  ctx.beginPath(); ctx.strokeStyle = '#d4a843'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  points.forEach((p, i) => i === 0 ? ctx.moveTo(xS(i), yS(p.y)) : ctx.lineTo(xS(i), yS(p.y)));
+  ctx.stroke();
+
+  // Average line
+  const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  const avgY = yS(avg);
+  ctx.beginPath(); ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.moveTo(pad.l, avgY); ctx.lineTo(pad.l + W, avgY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(`gns ${avg}m`, pad.l + 2, avgY - 3);
+
+  // Points + labels
+  points.forEach((p, i) => {
+    ctx.beginPath(); ctx.arc(xS(i), yS(p.y), 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#d4a843'; ctx.fill();
+    if (points.length <= 12 || i % 2 === 0) {
+      ctx.fillStyle = '#6b7280'; ctx.font = '9px Barlow,sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(p.x, xS(i), canvas.height - 4);
+    }
+  });
 }
 
 function drawBodyweightChart() {
@@ -3567,6 +3896,7 @@ function exportProgramData() {
     bodyweightLog: as.bodyweight || {},
     sessions,
     autoregHistory: as.autoregAdj || {},
+    sessionTimes: state.sessionTimes || {},
   };
 
   const json = JSON.stringify(data, null, 2);
@@ -4040,6 +4370,9 @@ function adjustTimer(type, delta) {
   if (type === 'primary') {
     state.timerPrimary = Math.max(60, Math.min(600, state.timerPrimary + delta));
     document.getElementById('setting-timer-primary').textContent = fmtTime(state.timerPrimary);
+  } else if (type === 'backdown') {
+    state.timerBackdown = Math.max(60, Math.min(600, (state.timerBackdown || 180) + delta));
+    document.getElementById('setting-timer-backdown').textContent = fmtTime(state.timerBackdown);
   } else {
     state.timerAcc = Math.max(30, Math.min(300, state.timerAcc + delta));
     document.getElementById('setting-timer-acc').textContent = fmtTime(state.timerAcc);
