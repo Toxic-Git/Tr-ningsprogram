@@ -2767,9 +2767,11 @@ function renderAccChartTabs() {
 
   const qualified = Object.keys(exNames).filter(n => exNames[n] >= 2);
   if (!qualified.length) {
-    tabs.innerHTML = '';
-    document.getElementById('acc-chart-empty').style.display = 'block';
-    document.getElementById('acc-chart').style.display = 'none';
+    if (tabs) tabs.innerHTML = '';
+    const accEmpty = document.getElementById('acc-chart-empty');
+    const accChart = document.getElementById('acc-chart');
+    if (accEmpty) accEmpty.style.display = 'block';
+    if (accChart) accChart.style.display = 'none';
     return;
   }
 
@@ -2791,7 +2793,7 @@ function renderAccChartTabs() {
 function drawAccChart() {
   const canvas = document.getElementById('acc-chart');
   const empty = document.getElementById('acc-chart-empty');
-  if (!canvas || !currentAccExercise) return;
+  if (!canvas || !empty || !currentAccExercise) return;
   const as = aState();
 
   const points = as.completedDays
@@ -3248,7 +3250,7 @@ function renderSettings() {
   // Profile buttons
   const btnMain = document.getElementById('btn-main');
   const btnPartner = document.getElementById('btn-partner');
-  if (btnMain) {
+  if (btnMain && btnPartner) {
     btnMain.style.background = !isPartner ? 'var(--gold)' : 'var(--surface2)';
     btnMain.style.color = !isPartner ? 'var(--bg)' : 'var(--muted)';
     btnPartner.style.background = isPartner ? '#d4688a' : 'var(--surface2)';
@@ -3355,10 +3357,12 @@ function confirmReset() {
 // ─── MODAL ───────────────────────────────────────────────────────────────────
 function showModal(title, body, onConfirm, danger = false) {
   document.getElementById('modal-title').textContent = title;
-  document.getElementById('modal-body').textContent = body;
+  document.getElementById('modal-body').innerHTML = body;
   const btn = document.getElementById('modal-confirm-btn');
-  btn.style.background = danger ? 'var(--red)' : 'var(--green)';
-  btn.onclick = onConfirm;
+  if (btn) {
+    btn.style.background = danger ? 'var(--red)' : 'var(--green)';
+    btn.onclick = onConfirm;
+  }
   document.getElementById('modal').classList.add('open');
 }
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
@@ -3459,7 +3463,7 @@ function saveBodyweight(kg) {
 function drawDurationChart() {
   const canvas = document.getElementById('duration-chart');
   const empty  = document.getElementById('duration-chart-empty');
-  if (!canvas) return;
+  if (!canvas || !empty) return;
 
   const times = state.sessionTimes || {};
   const points = Object.entries(times)
@@ -3538,7 +3542,7 @@ function drawDurationChart() {
 function drawBodyweightChart() {
   const canvas = document.getElementById('bw-chart');
   const empty  = document.getElementById('bw-chart-empty');
-  if (!canvas) return;
+  if (!canvas || !empty) return;
   const bw = state.bodyweight || {};
   const points = Object.entries(bw)
     .sort((a,b) => parseInt(a[0]) - parseInt(b[0]))
@@ -3735,6 +3739,66 @@ function renderPeakDay(day, week) {
     <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;border:1px solid var(--sq);color:var(--sq);">PEAK</span>
   </div>`;
 
+  // Rest/Energy/Bodyweight prompt — same as normal training days
+  const restScore = getRestScore();
+  const energyScore = getEnergyScore();
+  const todayBW = getBodyweight(as.totalDays);
+  if (!restScore || !energyScore || !todayBW) {
+    html += `<div style="margin:0 18px 12px;background:var(--surface);border-radius:var(--radius);padding:12px 16px;display:flex;flex-direction:column;gap:10px;">`;
+    if (!restScore) {
+      html += `<div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Restitutionsniveau i dag?</div>
+        <div style="display:flex;gap:6px;">
+          ${[1,2,3,4,5].map(n => `
+            <button onclick="saveRestScore(${n});"
+              style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);
+                     background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;
+                     font-family:'Barlow Condensed',sans-serif;cursor:pointer;">${n}</button>
+          `).join('')}
+        </div>
+      </div>`;
+    }
+    if (!energyScore) {
+      html += `<div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Samsung Energy Score?</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" inputmode="numeric" min="0" max="100"
+            placeholder="72"
+            onchange="saveEnergyScore(parseInt(this.value))"
+            style="width:64px;background:var(--surface2);border:1px solid var(--border);
+                   border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
+                   font-size:16px;font-weight:700;padding:7px 10px;text-align:center;
+                   -webkit-appearance:none;appearance:none;">
+          <span style="font-size:12px;color:var(--muted);">/100</span>
+        </div>
+      </div>`;
+    }
+    if (!todayBW) {
+      html += `<div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:13px;color:var(--muted);flex:1;font-weight:300;">Kropsvægt i dag?</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="number" inputmode="decimal" step="0.1" min="30" max="300"
+            placeholder="108.0"
+            onchange="saveBodyweight(parseFloat(this.value))"
+            style="width:72px;background:var(--surface2);border:1px solid var(--border);
+                   border-radius:8px;color:var(--text);font-family:'Barlow Condensed',sans-serif;
+                   font-size:16px;font-weight:700;padding:7px 10px;text-align:center;
+                   -webkit-appearance:none;appearance:none;">
+          <span style="font-size:12px;color:var(--muted);">kg</span>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  } else {
+    const energyColor = energyScore >= 76 ? 'var(--green)' : energyScore >= 61 ? 'var(--text)' : 'var(--dl)';
+    html += `<div class="suggestion-bar" style="margin:0 18px 12px;">
+      <div class="suggestion-icon">${restScore >= 4 && energyScore >= 70 ? '⚡' : '😴'}</div>
+      <div class="suggestion-text"><strong>Restitution ${restScore}/5 · Energy <span style="color:${energyColor}">${energyScore}</span>/100</strong> · <strong>${todayBW} kg</strong>
+        ${restScore >= 4 && energyScore >= 75 ? ' — du har grundlag for at presse forsøgene lidt højere end foreslået' : restScore <= 2 || energyScore < 50 ? ' — overvej at holde dig til eller under de foreslåede vægte' : ''}
+      </div>
+    </div>`;
+  }
+
   if (isSBD) {
     html += `<div style="margin:0 18px 12px;background:rgba(212,168,67,0.06);border:1px solid rgba(212,168,67,0.2);border-radius:var(--radius);padding:12px 14px;font-size:12px;color:var(--muted);line-height:1.6;">
       🏆 Konkurrencerækkefølge: Squat → Bench → Deadlift. 8–10 min. pause mellem forsøg. Mål: kom tæt på dine solo-max.
@@ -3742,31 +3806,57 @@ function renderPeakDay(day, week) {
   }
 
   lifts.forEach(({ lift, name, badge, oneRM }) => {
-    const attempts = calcAttempts(oneRM);
+    const attempt1Mod = getAttempt1Modifier();
+    const attempts = calcAttempts(oneRM * (1 + attempt1Mod));
     const col = liftColor[badge] || 'var(--text)';
+    const liftNameForWarmup = lift === 'squat' ? 'Squat' : lift === 'bench' ? 'Bench' : 'Deadlift';
+    const warmups = calcWarmups(attempts[0].kg, liftNameForWarmup); // build up to 1st attempt weight
 
     html += `<div class="ex-card">
       <div class="ex-header">
         <div>
           <div class="ex-name">${name}</div>
-          <div class="ex-target" style="color:var(--muted);">1RM basis: ${oneRM} kg · Forsøg beregnet automatisk</div>
+          <div class="ex-target" style="color:var(--muted);">1RM basis: ${oneRM} kg · Forsøg beregnet automatisk${attempt1Mod !== 0 ? ` · justeret ${attempt1Mod > 0 ? '+' : ''}${(attempt1Mod*100).toFixed(1)}%` : ''}</div>
         </div>
         <div class="ex-badge badge-${badge}">${badge.toUpperCase()}</div>
       </div>`;
 
+    // Warmup section — build up to first attempt weight
+    if (warmups.length) {
+      html += `<div style="padding:10px 16px;border-bottom:1px solid var(--border);">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
+          Opvarmning til 1. forsøg
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${renderWarmupBadges(warmups)}
+        </div>
+      </div>`;
+    }
+
     // Attempt rows
     attempts.forEach((att, i) => {
-      const savedKg = getAttemptKg(lift, i+1) || att.kg;
-      const done = as.peakResults?.[`${lift}_${i+1}`];
+      const attemptNum = i + 1;
+      const manualKg = getAttemptKg(lift, attemptNum);
+      const liveSuggestion = suggestNextAttemptKg(lift, attemptNum, att.kg);
+      const savedKg = manualKg || liveSuggestion || att.kg;
+      const isLiveAdjusted = !manualKg && liveSuggestion !== null;
+      const done = as.peakResults?.[`${lift}_${attemptNum}`];
       const success = done?.success;
-      html += `<div style="display:grid;grid-template-columns:1fr 100px 80px 48px;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;min-height:56px;${done ? (success?'background:rgba(61,184,122,0.06)':'background:rgba(224,92,74,0.06)') : ''}">
+      const savedRpe = done?.rpe;
+      if (i > 0) {
+        html += `<div style="padding:6px 16px;font-size:10px;color:var(--muted);
+          border-bottom:1px solid var(--border);font-style:italic;">
+          + 1-2 lette opvarmningssæt før dette forsøg (fx 1 rep @ ~85% af forsøgsvægt)
+        </div>`;
+      }
+      html += `<div style="display:grid;grid-template-columns:1fr 100px 80px 48px;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;min-height:56px;${done ? (success?'background:rgba(61,184,122,0.06)':'background:rgba(224,92,74,0.06)') : isLiveAdjusted ? 'background:rgba(212,168,67,0.05);' : ''}">
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:${col};">${att.label}</div>
-          <div style="font-size:11px;color:var(--muted);">${att.note}</div>
+          <div style="font-size:11px;color:${isLiveAdjusted ? 'var(--gold)' : 'var(--muted)'};">${isLiveAdjusted ? `Justeret fra sidste RPE (${liveSuggestion > att.kg ? '+' : ''}${(liveSuggestion - att.kg).toFixed(1)} kg)` : att.note}</div>
         </div>
         <input type="number" inputmode="decimal" step="2.5" value="${savedKg}"
-          onchange="saveAttemptKg('${lift}',${i+1},this.value)"
-          style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+          onchange="saveAttemptKg('${lift}',${attemptNum},this.value)"
+          style="background:var(--surface2);border:1px solid ${isLiveAdjusted ? 'var(--gold)' : 'var(--border)'};border-radius:8px;
                  color:var(--text);font-family:'Barlow Condensed',sans-serif;
                  font-size:max(16px,16px);font-weight:700;padding:8px;text-align:center;
                  width:100%;-webkit-appearance:none;appearance:none;">
@@ -3774,14 +3864,27 @@ function renderPeakDay(day, week) {
           ${platesText(savedKg)}<br>per side
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;">
-          <button onclick="logPeakResult('${lift}',${i+1},true)" style="
+          <button onclick="logPeakResult('${lift}',${attemptNum},true)" style="
             width:44px;height:22px;border-radius:4px;border:none;cursor:pointer;font-size:14px;
             background:${done&&success?'var(--green)':'var(--surface2)'};color:${done&&success?'white':'var(--muted)'};">✓</button>
-          <button onclick="logPeakResult('${lift}',${i+1},false)" style="
+          <button onclick="logPeakResult('${lift}',${attemptNum},false)" style="
             width:44px;height:22px;border-radius:4px;border:none;cursor:pointer;font-size:14px;
             background:${done&&!success?'var(--dl)':'var(--surface2)'};color:${done&&!success?'white':'var(--muted)'};">✗</button>
         </div>
       </div>`;
+      if (done) {
+        html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;
+          border-bottom:1px solid var(--border);background:rgba(0,0,0,0.1);">
+          <span style="font-size:11px;color:var(--muted);flex:1;">RPE for dette forsøg?${i < 2 ? ' — opdaterer næste forsøg' : ''}</span>
+          <input type="number" inputmode="decimal" step="0.5" min="5" max="10"
+            value="${savedRpe || ''}" placeholder="9"
+            onchange="saveAttemptRpe('${lift}',${attemptNum},this.value)"
+            style="width:56px;background:var(--surface2);border:1px solid var(--border);
+                   border-radius:6px;color:${col};font-family:'Barlow Condensed',sans-serif;
+                   font-size:max(16px,14px);font-weight:700;padding:6px;text-align:center;
+                   -webkit-appearance:none;appearance:none;">
+        </div>`;
+      }
     });
 
     // Best result
@@ -3817,13 +3920,48 @@ function logPeakResult(lift, attemptNum, success) {
   const as = aState();
   if (!as.peakResults) as.peakResults = {};
   const kg = getAttemptKg(lift, attemptNum) || 0;
-  as.peakResults[`${lift}_${attemptNum}`] = { success, kg };
+  const existingRpe = as.peakResults[`${lift}_${attemptNum}`]?.rpe;
+  as.peakResults[`${lift}_${attemptNum}`] = { success, kg, rpe: existingRpe };
   saveState();
   // Re-render peak day
   const peakIdx = getPeakDay();
   const day = PEAK_WEEK[peakIdx];
-  document.getElementById('today-content').innerHTML = renderPeakDay(day, getWeek());
+  const content = document.getElementById('today-content');
+  if (content) content.innerHTML = renderPeakDay(day, getWeek());
 }
+
+function saveAttemptRpe(lift, attemptNum, rpe) {
+  const as = aState();
+  if (!as.peakResults?.[`${lift}_${attemptNum}`]) return;
+  as.peakResults[`${lift}_${attemptNum}`].rpe = parseFloat(rpe) || null;
+  saveState();
+
+  // Try to update next attempt's weight field directly without full re-render
+  // (avoids stealing focus from the RPE input the person is still using)
+  const nextAttemptNum = attemptNum + 1;
+  if (nextAttemptNum > 3) return;
+
+  const manualKg = getAttemptKg(lift, nextAttemptNum);
+  if (manualKg) return; // person already set it manually, don't override
+
+  const baseAttempts = calcAttempts(
+    lift === 'squat' ? getSQ() : lift === 'bench' ? getBP() : getDL()
+  );
+  const baseKg = baseAttempts[nextAttemptNum - 1]?.kg;
+  if (!baseKg) return;
+
+  const liveSuggestion = suggestNextAttemptKg(lift, nextAttemptNum, baseKg);
+  if (liveSuggestion === null) return;
+
+  // Find the input field for the next attempt and update it in place
+  const inputs = document.querySelectorAll(`input[onchange*="saveAttemptKg('${lift}',${nextAttemptNum}"]`);
+  inputs.forEach(inp => {
+    inp.value = liveSuggestion;
+    inp.style.borderColor = 'var(--gold)';
+  });
+  if (inputs.length) showToast(`${nextAttemptNum}. forsøg justeret til ${liveSuggestion} kg`);
+}
+window.saveAttemptRpe = saveAttemptRpe;
 
 // ─── COMPETITION ATTEMPTS ────────────────────────────────────────────────────
 
@@ -3833,6 +3971,42 @@ function calcAttempts(oneRM) {
     { pct: 0.97, kg: r(oneRM * 0.97), label: '2. forsøg', note: 'Mål-vægt' },
     { pct: 1.03, kg: r(oneRM * 1.03), label: '3. forsøg', note: 'PR-forsøg' },
   ];
+}
+
+// Suggests an adjusted weight for the NEXT attempt based on the PREVIOUS
+// attempt's actual RPE — lower RPE than expected means push harder, higher
+// RPE means be more conservative. Returns null if no adjustment applies.
+function suggestNextAttemptKg(lift, attemptNum, baseKg) {
+  if (attemptNum === 1) return null; // attempt 1 uses restitution/energy modifier instead
+  const as = aState();
+  const prevResult = as.peakResults?.[`${lift}_${attemptNum - 1}`];
+  if (!prevResult?.success || !prevResult?.rpe) return null;
+
+  const prevRpe = prevResult.rpe;
+  const prevKg = prevResult.kg;
+  // Expected RPE per attempt: 1st ~7-8, 2nd ~8.5-9, 3rd ~9.5-10
+  const expectedRpe = attemptNum === 2 ? 7.5 : 9;
+  const rpeDiff = expectedRpe - prevRpe; // positive = lifted easier than expected
+
+  if (Math.abs(rpeDiff) < 0.5) return null; // close enough, use planned weight
+
+  // Each 1 RPE point ≈ roughly 4% of 1RM at these intensities
+  const pctAdjust = rpeDiff * 0.04;
+  const adjustedKg = r(baseKg * (1 + pctAdjust));
+  return Math.abs(adjustedKg - baseKg) >= 2.5 ? adjustedKg : null;
+}
+
+// Adjusts attempt 1 based on today's restitution/energy score
+function getAttempt1Modifier() {
+  const restScore = getRestScore();
+  const energyScore = getEnergyScore();
+  if (!restScore && !energyScore) return 0;
+  let mod = 0;
+  if (restScore >= 4) mod += 0.01;
+  if (restScore <= 2) mod -= 0.015;
+  if (energyScore >= 75) mod += 0.01;
+  if (energyScore < 50) mod -= 0.02;
+  return mod;
 }
 
 function saveAttemptKg(lift, attemptNum, kg) {
@@ -4465,7 +4639,7 @@ function setChartLift(key, btn) {
 function drawChart() {
   const canvas = document.getElementById('prog-chart');
   const empty = document.getElementById('chart-empty');
-  if (!canvas) return;
+  if (!canvas || !empty) return;
 
   const { points, color } = getChartData(currentChartLift);
 
