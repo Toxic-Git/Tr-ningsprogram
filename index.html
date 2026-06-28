@@ -660,6 +660,26 @@ html, body {
       </div>
     </div>
 
+    <div class="settings-label">Udstyr</div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <span class="settings-row-label">Største skive</span>
+        <div style="display:flex;gap:6px;">
+          <button onclick="setMaxPlate(20)" id="btn-plate-20" style="
+            font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+            letter-spacing:1px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);
+            cursor:pointer;background:var(--surface2);color:var(--muted);">20 kg</button>
+          <button onclick="setMaxPlate(25)" id="btn-plate-25" style="
+            font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+            letter-spacing:1px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);
+            cursor:pointer;background:var(--gold);color:var(--bg);">25 kg</button>
+        </div>
+      </div>
+      <div style="padding:0 16px 12px;font-size:11px;color:var(--muted);line-height:1.5;">
+        Skift til 20 kg hvis dit center ikke har 25 kg skiver. Plade-udregningen tilpasses automatisk.
+      </div>
+    </div>
+
     <div class="settings-label">Nuværende position</div>    <div class="settings-card">
       <div class="settings-row">
         <span class="settings-row-label">Uge</span>
@@ -1046,6 +1066,7 @@ const ACC_TEMPLATES = {
     { name:'Seated Leg Curl (Machine)', badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:87.5 },
     { name:'Calf Raise (Machine)',      badge:'acc', sets:3, reps:8, repsRange:'8–15', kg:130 },
     { name:'Cable Crunch',              badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
+    { name:'Overhead Press (Seated DB)', badge:'acc', sets:2, reps:8, repsRange:'6–10', kg:20,  note:'Let — ekstra skulder-frekvens uden at konkurrere med Squat-restitution.' },
   ],
   // B&B primær (dag 4) — Deadlift fokus
   bb1: [
@@ -1053,6 +1074,7 @@ const ACC_TEMPLATES = {
     { name:'Smith Machine Row',          badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:87.5 },
     { name:'Seated Cable Row (V-Grip)', badge:'acc', sets:3, reps:5,  repsRange:'4–6',  kg:79   },
     { name:'Hammer Curl (DB)',           badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:20   },
+    { name:'Close Grip Bench Press',     badge:'acc', sets:2, reps:8, repsRange:'6–10', kg:50,  note:'Let — ekstra triceps-frekvens for bench, ikke til failure.' },
   ],
   // CST sekundær (dag 5) — Pause Bench fokus
   cst2: [
@@ -1068,6 +1090,7 @@ const ACC_TEMPLATES = {
     { name:'Hip Adduction (Machine)',    badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:70   },
     { name:'Seated Leg Curl (Machine)', badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:82.5 },
     { name:'Cable Crunch',               badge:'acc', sets:3, reps:12, repsRange:'10–15',kg:40   },
+    { name:'Lateral Raise (Machine)',    badge:'acc', sets:2, reps:10, repsRange:'8–12', kg:50,  note:'Let — ekstra skulder-frekvens.' },
   ],
   // B&B sekundær (dag 8) — Deficit DL fokus, variation fra dag 4
   bb2: [
@@ -1076,6 +1099,7 @@ const ACC_TEMPLATES = {
     { name:'Neutral Grip Pulldown',              badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:70,  note:'Neutralt greb rammer lower lats anderledes end bredt greb.' },
     { name:'Jefferson Curl',                     badge:'acc', sets:3, reps:8,  repsRange:'6–10', kg:40,  note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
     { name:'Preacher Curl (DB)',                 badge:'acc', sets:3, reps:10, repsRange:'8–12', kg:22.9 },
+    { name:'Overhead Triceps Ext. (Cable)',      badge:'acc', sets:2, reps:10, repsRange:'8–12', kg:20,  note:'Let — ekstra triceps-frekvens for bench.' },
   ],
 };
 
@@ -1093,12 +1117,14 @@ const PARTNER_TEMPLATES = {
     { name:'Seated Leg Curl (Machine)',      sets:3, reps:5, repsRange:'4–6', kg:35    },
     { name:'Calf Raise (Machine)',           sets:3, reps:8, repsRange:'8–15', kg:60 },
     { name:'Cable Crunch',                   sets:3, reps:12,repsRange:'10–15',kg:20   },
+    { name:'Overhead Press (Seated DB)',     sets:2, reps:8, repsRange:'6–10', kg:8 },
   ],
   bb1: [
     { name:'Lat Pulldown Wide Grip',         sets:3, reps:5, repsRange:'4–6', kg:30    },
     { name:'Smith Machine Row',              sets:3, reps:5, repsRange:'4–6', kg:25    },
     { name:'Seated Cable Row (V-Grip)',      sets:3, reps:5, repsRange:'4–6', kg:25    },
     { name:'Hammer Curl (DB)',               sets:3, reps:10,repsRange:'8–12',kg:8     },
+    { name:'Close Grip Bench Press',         sets:2, reps:8, repsRange:'6–10',kg:20    },
   ],
   cst2: [
     { name:'Incline DB Press (variation)',   sets:3, reps:5, repsRange:'4–6', kg:14    },
@@ -1112,6 +1138,7 @@ const PARTNER_TEMPLATES = {
     { name:'Hip Adduction (Machine)',        sets:3, reps:10,repsRange:'8–12',kg:40    },
     { name:'Seated Leg Curl (Machine)',      sets:3, reps:10,repsRange:'8–12',kg:30    },
     { name:'Cable Crunch',                   sets:3, reps:12,repsRange:'10–15',kg:20   },
+    { name:'Lateral Raise (Machine)',        sets:2, reps:10,repsRange:'8–12',kg:20    },
   ],
   bb2: [
     { name:'Weighted Pull-up',               sets:3, reps:5, repsRange:'4–6', kg:0,    note:'Start med kropsvægt. Tilføj vægt når 6 reps er let.' },
@@ -1119,6 +1146,7 @@ const PARTNER_TEMPLATES = {
     { name:'Neutral Grip Pulldown',          sets:3, reps:8, repsRange:'6–10',kg:35    },
     { name:'Jefferson Curl',                 sets:3, reps:8, repsRange:'6–10',kg:15,   note:'Lav moderat vægt — fokus på ordentlig bøjning.' },
     { name:'Preacher Curl (DB)',             sets:3, reps:10,repsRange:'8–12',kg:8     },
+    { name:'Overhead Triceps Ext. (Cable)',  sets:2, reps:10,repsRange:'8–12',kg:8     },
   ],
 };
 
@@ -1330,6 +1358,8 @@ function _getExercises(dayId, week) {
 let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
   totalDays: 0, logs: {}, completedDays: [],
   timerPrimary: 240, timerAcc: 120, timerBackdown: 180,
+  maxPlate: 25, // 25 or 20 — depends on what gym center has available
+  checkpointExported: {}, // tracks which checkpoint weeks (4, 8) have been exported
   sessionTimes: {}, // { dayN: { start, end } }
   oneRM: { sq: 117.02, bp: 89.89, dl: 178.19 },
   programStart1RM: null, // locked at program start, never changes mid-program
@@ -1340,6 +1370,8 @@ let state = JSON.parse(localStorage.getItem('sbd_state') || 'null') || {
 
 if (!state.timerPrimary)   state.timerPrimary   = 240;
 if (!state.timerBackdown)  state.timerBackdown  = 180;
+if (!state.maxPlate)       state.maxPlate       = 25;
+if (!state.checkpointExported) state.checkpointExported = {};
 if (!state.timerAcc)       state.timerAcc       = 120;
 if (!state.sessionTimes)   state.sessionTimes   = {};
 if (!state.oneRM)          state.oneRM          = { sq: 117.02, bp: 89.89, dl: 178.19 };
@@ -2060,7 +2092,8 @@ function calcPlates(totalKg, barKg = 20) {
   if (!kg || isNaN(kg)) return { plates: [], remainder: 0 };
   const perSide = Math.round((kg - barKg) / 2 * 100) / 100;
   if (perSide <= 0) return [];
-  const plates = [25, 20, 15, 10, 5, 2.5];
+  const maxPlate = state.maxPlate || 25;
+  const plates = [25, 20, 15, 10, 5, 2.5].filter(p => p <= maxPlate);
   let remaining = perSide;
   const result = [];
   plates.forEach(p => {
@@ -2423,8 +2456,20 @@ function finishWorkout() {
   // Record session end time
   const key = logKey();
   if (!state.sessionTimes) state.sessionTimes = {};
+  const MAX_REALISTIC_SESSION_MS = 4 * 60 * 60 * 1000; // 4 hours
   if (state.sessionTimes[key]) {
-    state.sessionTimes[key].end = Date.now();
+    const candidateEnd = Date.now();
+    const candidateStart = state.sessionTimes[key].start;
+    // If the gap is unrealistic (>4h), the start time is stale from an
+    // earlier toggleSet on this same dayKey (e.g. testing/navigating away
+    // and back days later). Reset start to "now minus estimated time" instead
+    // of keeping garbage data.
+    if (candidateStart && (candidateEnd - candidateStart) > MAX_REALISTIC_SESSION_MS) {
+      const estimatedSecs = isPeakWeek() ? 1800 : calcEstimatedTime(CYCLE[getCycleDay()]?.id, getWeek());
+      state.sessionTimes[key].start = candidateEnd - (estimatedSecs * 1000);
+      state.sessionTimes[key].wasReset = true; // flag for export/debugging
+    }
+    state.sessionTimes[key].end = candidateEnd;
   } else {
     // Edge case: finished without logging any sets
     state.sessionTimes[key] = { start: Date.now(), end: Date.now() };
@@ -2448,10 +2493,41 @@ function finishWorkout() {
     showToast(`✓ Træning afsluttet — ${fmtDuration(actual)}${diffStr}`);
   }
 
+  // Forced checkpoint export — last workout day of week 4 or week 8 (deload weeks)
+  const completedWeek = getWeek();
+  const isLastWorkoutDayOfWeek = (as.totalDays % 8 === 7) || (as.totalDays === 27) || (as.totalDays === 55);
+  const isCheckpointWeek = completedWeek === 4 || completedWeek === 8;
+  if (isCheckpointWeek && !state.checkpointExported?.[completedWeek]) {
+    showCheckpointExportModal(completedWeek);
+    return; // don't advance yet — wait for export confirmation
+  }
+
   if (isPeakWeek()) { advanceDay(); return; }
   if (state.profile === 'partner') { advanceDay(); return; }
   advanceDay();
 }
+
+function showCheckpointExportModal(week) {
+  showModal(
+    `📊 Uge ${week} checkpoint`,
+    `<div style="font-size:13px;color:var(--muted);line-height:1.7;">
+      Du har afsluttet uge ${week} — tid til et data-checkpoint.<br><br>
+      Eksportér dine data nu, så vi kan fange eventuelle mønstre tidligt
+      (fx hvis et løft halter eller autoreguleringen ikke kalibrerer korrekt)
+      i stedet for først at opdage det ved programmets afslutning.
+    </div>`,
+    () => {
+      exportProgramData();
+      if (!state.checkpointExported) state.checkpointExported = {};
+      state.checkpointExported[week] = true;
+      saveState();
+      closeModal();
+      advanceDay();
+    },
+    false
+  );
+}
+window.showCheckpointExportModal = showCheckpointExportModal;
 
 function finishProgram() {
   // Called from SBD competition day finish button
@@ -2557,6 +2633,7 @@ function startNewProgram(newSQ, newBP, newDL) {
   state.peakResults = {};
   state.dayOverrides = {};
   state.sessionTimes = {};
+  state.checkpointExported = {};
   state.programStartDate = new Date().toISOString().slice(0,10); // today
 
   saveState();
@@ -3280,6 +3357,17 @@ function renderSettings() {
   document.getElementById('setting-timer-backdown').textContent = fmtTime(state.timerBackdown || 180);
   document.getElementById('setting-timer-acc').textContent = fmtTime(state.timerAcc);
 
+  // Max plate toggle styling
+  const btn20 = document.getElementById('btn-plate-20');
+  const btn25 = document.getElementById('btn-plate-25');
+  if (btn20 && btn25) {
+    const is25 = (state.maxPlate || 25) === 25;
+    btn25.style.background = is25 ? 'var(--gold)' : 'var(--surface2)';
+    btn25.style.color = is25 ? 'var(--bg)' : 'var(--muted)';
+    btn20.style.background = !is25 ? 'var(--gold)' : 'var(--surface2)';
+    btn20.style.color = !is25 ? 'var(--bg)' : 'var(--muted)';
+  }
+
   // Hide SBD-specific sections for partner
   const sbdSections = document.querySelectorAll('.sbd-only');
   sbdSections.forEach(el => el.style.display = isPartner ? 'none' : '');
@@ -3346,6 +3434,7 @@ function confirmReset() {
       state.peakAttempts = {};
       state.peakResults = {};
       state.sessionTimes = {};
+      state.checkpointExported = {};
     }
     saveState();
     closeModal();
@@ -3466,11 +3555,13 @@ function drawDurationChart() {
   if (!canvas || !empty) return;
 
   const times = state.sessionTimes || {};
+  const MAX_REALISTIC_MIN = 240; // 4 hours
   const points = Object.entries(times)
     .filter(([, t]) => t?.start && t?.end && t.end > t.start)
-    .sort(([a], [b]) => parseInt(a) - parseInt(b))
-    .map(([day, t]) => {
-      const mins = Math.round((t.end - t.start) / 60000);
+    .map(([day, t]) => ({ day, mins: Math.round((t.end - t.start) / 60000) }))
+    .filter(({ mins }) => mins <= MAX_REALISTIC_MIN) // exclude stale/bad legacy data
+    .sort((a, b) => parseInt(a.day) - parseInt(b.day))
+    .map(({ day, mins }) => {
       const week = Math.floor(parseInt(day) / 7) + 1;
       const dayInfo = CYCLE[parseInt(day) % 8];
       return { x: `U${week} ${dayInfo?.short || ''}`, y: mins, estimated: null };
@@ -3919,7 +4010,16 @@ function renderPeakDay(day, week) {
 function logPeakResult(lift, attemptNum, success) {
   const as = aState();
   if (!as.peakResults) as.peakResults = {};
-  const kg = getAttemptKg(lift, attemptNum) || 0;
+  let kg = getAttemptKg(lift, attemptNum);
+  if (!kg) {
+    // Fall back to the calculated/planned attempt weight, not 0 —
+    // this happens when the person never touched the weight input field
+    // because the auto-calculated value was already correct
+    const oneRM = lift === 'squat' ? getSQ() : lift === 'bench' ? getBP() : getDL();
+    const attempt1Mod = getAttempt1Modifier();
+    const attempts = calcAttempts(oneRM * (1 + attempt1Mod));
+    kg = attempts[attemptNum - 1]?.kg || 0;
+  }
   const existingRpe = as.peakResults[`${lift}_${attemptNum}`]?.rpe;
   as.peakResults[`${lift}_${attemptNum}`] = { success, kg, rpe: existingRpe };
   saveState();
@@ -3954,10 +4054,18 @@ function saveAttemptRpe(lift, attemptNum, rpe) {
   if (liveSuggestion === null) return;
 
   // Find the input field for the next attempt and update it in place
+  // Find the input field for the next attempt and update it in place
   const inputs = document.querySelectorAll(`input[onchange*="saveAttemptKg('${lift}',${nextAttemptNum}"]`);
   inputs.forEach(inp => {
     inp.value = liveSuggestion;
     inp.style.borderColor = 'var(--gold)';
+  });
+  // CRITICAL: persist the suggestion to state so plate calc and other reads stay in sync
+  saveAttemptKg(lift, nextAttemptNum, liveSuggestion);
+  // Update the plate display next to the field too (it doesn't re-render automatically)
+  inputs.forEach(inp => {
+    const plateDiv = inp.parentElement?.querySelector('div[style*="text-align:center"]');
+    if (plateDiv) plateDiv.innerHTML = `${platesText(liveSuggestion)}<br>per side`;
   });
   if (inputs.length) showToast(`${nextAttemptNum}. forsøg justeret til ${liveSuggestion} kg`);
 }
@@ -4028,15 +4136,16 @@ function exportProgramData() {
   // Build per-session summary for easy analysis
   const sessions = as.completedDays.sort((a,b) => a-b).map(d => {
     const log = as.logs[`day${d}`];
-    const dayInfo = isPeakWeek() ? null : CYCLE[d % 8];
     const week = Math.floor(d / 7) + 1;
+    const wasPeakWeek = week === 12; // check THIS session's week, not current week
+    const dayInfo = wasPeakWeek ? null : CYCLE[d % 8];
     if (!log) return null;
     return {
       day: d,
       week,
       block: week <= 4 ? 1 : week <= 8 ? 2 : 3,
       dayType: dayInfo?.id || 'peak',
-      dayName: dayInfo?.name || 'Peak Week',
+      dayName: dayInfo?.name || (wasPeakWeek ? (PEAK_WEEK[d - 77]?.name || 'Peak Week') : 'Ukendt'),
       exercises: log.exercises.map(ex => {
         const doneSets = (ex.sets || []).filter(s => s.done && parseFloat(s.kg) > 0 && parseInt(s.reps) > 0);
         const bestE1RM = doneSets.length
@@ -4539,6 +4648,16 @@ function addTimerTime(secs) {
     document.getElementById('timer-display')
   );
 }
+
+function setMaxPlate(maxPlate) {
+  state.maxPlate = maxPlate;
+  saveState();
+  invalidateCache();
+  renderSettings();
+  renderToday();
+  showToast(`Største skive sat til ${maxPlate} kg`);
+}
+window.setMaxPlate = setMaxPlate;
 
 function adjustTimer(type, delta) {
   if (type === 'primary') {
